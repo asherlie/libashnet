@@ -45,11 +45,10 @@ each received packet that is not a duplicate will be added to the ready_queue fo
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 #include "mq.h"
 #include "kq.h"
-
-#define spawn_thread(thread, arg) { pthread_t pth; pthread_create(&pth, NULL, thread, arg); pth;}
 
 void init_queues(struct queues* q, key_t k_in, key_t k_out){
     init_mq(&q->ready_to_send);
@@ -71,13 +70,22 @@ void* broadcast_thread(void* arg){
     struct queues* q = arg;
     struct mq_entry* e;
     while(1){
+        puts("runnign b thread omg");
         e = pop_mq(&q->ready_to_send);
         broadcast_packet(e->data, e->len);
     }
+}
+
+pthread_t spawn_thread(void* (*func)(void *), void* arg){
+    pthread_t ret;
+    pthread_create(&ret, NULL, func, arg);
+    return ret;
 }
 
 int main(){
     struct queues q;
     init_queues(&q, 857123030, 857123040);
     printf("initialized kernel queues %i, %i\n", q.kq_key_in, q.kq_key_out);
+
+    spawn_thread(broadcast_thread, &q);
 }
