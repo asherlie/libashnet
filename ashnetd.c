@@ -1,4 +1,7 @@
 /*
+
+ashnetd
+
 we'll need to keep track of duplicates
     this should be done by building a hash map
     that indexes based on mac address
@@ -39,3 +42,17 @@ each time a full packet is constructed, the username and message contents are ad
 for the user to read from
 each received packet that is not a duplicate will be added to the ready_queue for propogation
 */
+#include <stdint.h>
+
+void recv_packet(uint8_t* buf, int* len){
+    *buf = 8;
+    *len = 1;
+}
+
+void broadcast_packet(uint8_t* buf, int len){
+    (void)buf;
+    (void)len;
+}
+
+int main(){
+}
