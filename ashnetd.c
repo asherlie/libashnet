@@ -43,6 +43,19 @@ for the user to read from
 each received packet that is not a duplicate will be added to the ready_queue for propogation
 */
 #include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
+
+#include "mq.h"
+#include "kq.h"
+
+#define spawn_thread(thread, arg) { pthread_t pth; pthread_create(&pth, NULL, thread, arg); pth;}
+
+void init_queues(struct queues* q, key_t k_in, key_t k_out){
+    init_mq(&q->ready_to_send);
+    init_mq(&q->build_fragments);
+    set_kq_key(q, k_in, k_out);
+}
 
 void recv_packet(uint8_t* buf, int* len){
     *buf = 8;
@@ -54,5 +67,17 @@ void broadcast_packet(uint8_t* buf, int len){
     (void)len;
 }
 
+void* broadcast_thread(void* arg){
+    struct queues* q = arg;
+    struct mq_entry* e;
+    while(1){
+        e = pop_mq(&q->ready_to_send);
+        broadcast_packet(e->data, e->len);
+    }
+}
+
 int main(){
+    struct queues q;
+    init_queues(&q, 857123030, 857123040);
+    printf("initialized kernel queues %i, %i\n", q.kq_key_in, q.kq_key_out);
 }
