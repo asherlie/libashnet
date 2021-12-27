@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "mq.h"
@@ -34,21 +35,34 @@ struct mq_entry* pop_mq(struct mq* m){
 
     while(!ret){
         pthread_mutex_lock(&tmp_lock);
-
-        pthread_cond_wait(&m->cond, &tmp_lock);
-
-        pthread_mutex_unlock(&tmp_lock);
-
         pthread_mutex_lock(&m->lock);
+
         if(m->entries){
             ret = m->entries;
             m->entries = m->entries->next;
+            pthread_mutex_unlock(&m->lock);
+            break;
         }
+
         pthread_mutex_unlock(&m->lock);
+
+        pthread_cond_wait(&m->cond, &tmp_lock);
+
+        /*pthread_mutex_unlock(&tmp_lock);*/
+
     }
+
+    pthread_mutex_destroy(&tmp_lock);
 
     return ret;
 }
 
 int main(){
+    struct mq m;
+    init_mq(&m);
+
+    insert_mq(&m, NULL, 50);
+
+    printf("%i\n", pop_mq(&m)->len);
+    pop_mq(&m);
 }
