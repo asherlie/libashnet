@@ -17,6 +17,7 @@ void insert_mq(struct mq* m, void* data, int len){
     e->len = len;
     pthread_mutex_lock(&m->lock);
     if(!m->entries){
+        m->last = e;
         m->entries = e;
     }
     else{
@@ -57,12 +58,17 @@ struct mq_entry* pop_mq(struct mq* m){
     return ret;
 }
 
+#if 0
 int main(){
     struct mq m;
     init_mq(&m);
 
     insert_mq(&m, NULL, 50);
+    insert_mq(&m, NULL, 40);
+    printf("%i\n", pop_mq(&m)->len);
+    printf("%i\n", pop_mq(&m)->len);
+    insert_mq(&m, NULL, 99);
 
     printf("%i\n", pop_mq(&m)->len);
-    pop_mq(&m);
 }
+#endif
