@@ -69,7 +69,8 @@ void init_queues(struct queues* q, key_t k_in, key_t k_out){
 struct packet* recv_packet(int* len){
     struct packet* ret = calloc(1, sizeof(struct packet));
     /* every 5th message should be a beacon */
-    ret->variety = time(NULL);
+    // hmm, when i get rid of this we're still getting duplicates
+    /*ret->variety = time(NULL);*/
     // get rid of THIS
     // it's actually a great feature that BEACON_MARKER overwrites
     // the four variety bytes
@@ -90,8 +91,8 @@ struct packet* recv_packet(int* len){
     return ret;
 }
 
-void broadcast_packet(uint8_t* buf, int len){
-    (void)buf;
+void broadcast_packet(struct packet* p, int len){
+    printf("broadcasting%s \"%s\"\n", (p->beacon) ? " a beacon" : "", (char*)p->data);
     (void)len;
 }
 
@@ -100,7 +101,6 @@ void* broadcast_thread(void* arg){
     struct mq_entry* e;
     while(1){
         e = pop_mq(&q->ready_to_send);
-        printf("broadcasting %s\n", ((struct packet*)e->data)->data);
         broadcast_packet(e->data, e->len);
     }
 }
@@ -111,7 +111,7 @@ void* process_kq_msg(void* arg){
     struct packet* p;
     while(1){
         bytes_to_send = pop_kq(q->kq_key_in);
-        printf("goint to send %s\n", (char*)bytes_to_send);
+        /*printf("goint to send %s\n", (char*)bytes_to_send);*/
         p = calloc(1, sizeof(struct packet));
         strncpy((char*)p->data, (char*)bytes_to_send, DATA_BYTES);
         p->beacon = 0;
@@ -197,6 +197,9 @@ void* builder_thread(void* arg){
          * to a unique value that only holds true for beacons
          * as well as setting a unique arrangement of values for
          * the other boolean flags
+         */
+        /* TODO: this order of operations allows all beacons to
+         * pass through, even if they're duplicates
          */
         if(p->beacon && p->variety == BEACON_MARKER){
             insert_uname(&q->ps, p->addr, (char*)p->data);

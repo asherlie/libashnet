@@ -71,8 +71,17 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
         /* this occurs when the buffer isn't completely
          * full and there are no duplicates
          */
-        if(!peer->recent_packets[i])return 0;
-        if(!memcmp(peer->recent_packets[i], p, sizeof(struct packet)))return 1;
+        if(!peer->recent_packets[i]){
+            return 0;
+        }
+        /* need to check fields independently due to built byte 
+         * varying based on build_message() progress
+         */
+        if(!memcmp(peer->addr, p->addr, 6) &&
+           !memcmp(peer->recent_packets[i]->data, p->data, DATA_BYTES) &&
+           peer->recent_packets[i]->beacon == p->beacon &&
+           peer->recent_packets[i]->final_packet == p->final_packet &&
+           peer->recent_packets[i]->variety == p->variety)return 1;
     }
     return 0;
 }
