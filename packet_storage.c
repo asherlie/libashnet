@@ -86,42 +86,111 @@ completed message
 and not even check for duplicates after the message is completed
 do not think this is the best approach actually
 #endif
-char* build_message(struct peer* peer, struct packet* p){
+char* build_message(struct peer* peer){
+    /* TODO: this is a naive long term approach
+     * i need to account for wrap-arounds
+     */
+    /* TODO: this should be calculated more precisely */
+    char* ret = calloc(1, peer->ins_idx*DATA_BYTES);
+    int ret_idx = 0;
+    _Bool recording = 0;
+    for(int i = 0; i < peer->ins_idx; ++i){
+        if(peer->recent_packets[i]->beacon)continue;
+        if(!peer->recent_packets[i]->built)recording = 1;
+        if(recording){
+            strncpy(ret+ret_idx, (char*)peer->recent_packets[i]->data, DATA_BYTES);
+            peer->recent_packets[i]->built = 1;
+            /* move pointer to the NUL byte */
+            for(; ret[ret_idx] != 0; ++ret_idx);
+        }
+    }
+
+    return ret;
 }
 
 /* returns whether a message has been completed */
 char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p){
     struct peer* peer = lookup_peer(ps, addr, NULL, NULL);
+    char* ret = NULL;
+
     if(!peer)return NULL;
     pthread_mutex_lock(&ps->ps_lock);
     if(is_duplicate(peer, p)){
         pthread_mutex_unlock(&ps->ps_lock);
         return NULL;
     }
+    p->built = 0;
     if(peer->ins_idx == peer->n_stored_packets)
         peer->ins_idx = 0;
     if(peer->recent_packets[peer->ins_idx]){
         /* if non-NULL, free */
         free(peer->recent_packets[peer->ins_idx]);
-        peer->recent_packets[peer->ins_idx++] = p;
     }
-    pthread_mutex_unlock(&ps->ps_lock);
-}
-#if 0
+    peer->recent_packets[peer->ins_idx++] = p;
+    if(p->final_packet)ret = build_message(peer);
 
+    pthread_mutex_unlock(&ps->ps_lock);
+
+    return ret;
+}
+#if 1
+
+struct packet* spoof_packet(char* str, _Bool final){
+    struct packet* ret = calloc(1, sizeof(struct packet));
+    int didx = 0;
+    for(char* i = str; *i; ++i){
+        /*printf("%c -> %i\n", *i, didx);*/
+        ret->data[didx++] = *i;
+    }
+    ret->final_packet = final;
+    return ret;
+}
+
+void p_cache(struct packet_storage* ps){
+    for(int i = 0; i < 1531; ++i){
+        if(ps->buckets[i]){
+            for(struct peer* p = ps->buckets[i]; p; p = p->next){
+                printf("uname: %s, %i saved\n", p->uname, p->ins_idx);
+                for(int i = 0; i < p->ins_idx; ++i){
+                    printf("%i: \"%s\" %i %i\n", i, p->recent_packets[i]->data, p->recent_packets[i]->final_packet, p->recent_packets[i]->built);
+                }
+            }
+        }
+    }
+}
+
+#if 0
 int main(){
     /*assert(sizeof(struct packet) == 32);*/
     /*printf("%i\n", sizeof(struct packet));*/
     struct packet_storage ps;
     char uname[UNAME_LEN] = "ahsyboy";
+    char* built_msg;
     init_packet_storage(&ps);
 
     printf("%i\n", (_Bool)insert_uname(&ps, (uint8_t*)uname, uname));
-    uname[0] = 'z';
-    printf("%i\n", (_Bool)insert_uname(&ps, (uint8_t*)uname, uname));
-    printf("%s\n", lookup_peer(&ps, uname, NULL , NULL)->uname);
-    uname[0] = 'a';
+    /*
+     * uname[0] = 'z';
+     * printf("%i\n", (_Bool)insert_uname(&ps, (uint8_t*)uname, uname));
+     * printf("%s\n", lookup_peer(&ps, (uint8_t*)uname, NULL , NULL)->uname);
+    */
+    /*uname[0] = 'a';*/
 
-    printf("%s\n", lookup_peer(&ps, uname, NULL , NULL)->uname);
+    /*printf("%s\n", lookup_peer(&ps, (uint8_t*)uname, NULL , NULL)->uname);*/
+
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("asher ", 0));
+    if(built_msg)puts(built_msg);
+    // this seg faults
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("is ", 0));
+    if(built_msg)puts(built_msg);
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("a ", 0));
+    if(built_msg)puts(built_msg);
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("good ", 0));
+    if(built_msg)puts(built_msg);
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("guy ", 0));
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("and ", 0));
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("i love the fella", 1));
+    if(built_msg)puts(built_msg);
+    p_cache(&ps);
 }
 #endif

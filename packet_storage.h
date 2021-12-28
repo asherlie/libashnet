@@ -4,7 +4,9 @@
 
 struct __attribute__((__packed__)) packet{
     uint8_t data[DATA_BYTES];
-    _Bool flags[3];
+    _Bool flags[1];
+    _Bool beacon;
+    _Bool built;
     _Bool final_packet;
     int variety;
 };
