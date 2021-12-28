@@ -43,22 +43,51 @@ for the user to read from
 each received packet that is not a duplicate will be added to the ready_queue for propogation
 */
 #include <stdint.h>
+#include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <pthread.h>
 
 #include "mq.h"
 #include "kq.h"
+#include "packet_storage.h"
+
+/*uint8_t local_addr[6] = {0x08, 0x011, 0x96, 0x99, 0x37, 0x90};*/
+uint8_t local_addr[6] = {32, 0, 0, 0, 0, 0};
 
 void init_queues(struct queues* q, key_t k_in, key_t k_out){
     init_mq(&q->ready_to_send);
     init_mq(&q->build_fragments);
     set_kq_key(q, k_in, k_out);
+    init_packet_storage(&q->ps);
 }
 
-void recv_packet(uint8_t* buf, int* len){
-    *buf = 8;
-    *len = 1;
+/*
+ * okay, this should return a malloc'd packet*, beacon packets must be identified and flagged
+*/
+struct packet* recv_packet(int* len){
+    struct packet* ret = calloc(1, sizeof(struct packet));
+    /* every 5th message should be a beacon */
+    ret->variety = time(NULL);
+    // get rid of THIS
+    // it's actually a great feature that BEACON_MARKER overwrites
+    // the four variety bytes
+    /**ret->flags = time(NULL)%2;*/
+    if(time(NULL) % 2 == 0){
+        ret->beacon = 1;
+        ret->variety = BEACON_MARKER;
+        ret->data[3] = 'e';
+        ret->data[4] = 'r';
+    }
+    ret->addr[0] = 32;
+    ret->data[0] = 'a';
+    ret->data[1] = 's';
+    ret->data[2] = 'h';
+    ret->final_packet = 1;
+    *len = 3;
+    usleep(500000);
+    return ret;
 }
 
 void broadcast_packet(uint8_t* buf, int len){
@@ -71,6 +100,7 @@ void* broadcast_thread(void* arg){
     struct mq_entry* e;
     while(1){
         e = pop_mq(&q->ready_to_send);
+        printf("broadcasting %s\n", ((struct packet*)e->data)->data);
         broadcast_packet(e->data, e->len);
     }
 }
@@ -78,25 +108,41 @@ void* broadcast_thread(void* arg){
 void* process_kq_msg(void* arg){
     struct queues* q = arg;
     uint8_t* bytes_to_send;
+    struct packet* p;
     while(1){
         bytes_to_send = pop_kq(q->kq_key_in);
+        printf("goint to send %s\n", (char*)bytes_to_send);
+        p = calloc(1, sizeof(struct packet));
+        strncpy((char*)p->data, (char*)bytes_to_send, DATA_BYTES);
+        p->beacon = 0;
+        p->final_packet = 1;
         /*
          * we now need to split this string into celing(strlen()/(32-sizeof(int)))
          * separate packets and add them to the ready_to_send mq
         */
+        /* TODO: split this message */
+        /* len should not be DATA_BYTES, but used length of DATA_BYTES */
+        insert_mq(&q->ready_to_send, p, DATA_BYTES);
+        /* all sent packets are added to packet storage to be checked
+         * against as a duplicate
+         */
+        /*
+         * no need to check for validity, this is coming directly from
+         * a kqueue - it won't be a bouncing message and certainly 
+         * won't come from a nonexistent peer
+         */
+        insert_packet(&q->ps, local_addr, p, NULL);
     }
 }
 
 void* recv_packet_thread(void* arg){
     struct queues* q = arg;
-    uint8_t* buf;
+    struct packet* p;
     int len;
 
     while(1){
-        buf = malloc(300);
-        recv_packet(buf, &len);
-        buf[len] = 0;
-        insert_mq(&q->build_fragments, buf, len);
+        p = recv_packet(&len);
+        insert_mq(&q->build_fragments, p, len);
     }
 
     /*
@@ -106,6 +152,7 @@ void* recv_packet_thread(void* arg){
     */
 }
 
+/*
 okay, so i've now written broadcast_thread()
 recv_packet_thread()
 
@@ -113,11 +160,57 @@ i still need to write builder_thread(), that checks if message is from a known
 user, then adds recvd packet directly to ready_to_send queue before building messages
 
 if a message has been constructed succesfully, it's added to kq_out
+*/
 
+#if !1
+builder thread checks if fragments are from a known user or are beacon packetss
+if not either, free memory and ignore
+if beacon, add uname to packet storage
+if either beacon or known user, add to packet storage and check if
+a string is returned
+this string will be added to the relevant kq
+insert_packet() will take an additional argument - _Bool* is_duplicate
+which will be set to whether packet is a duplicate
+if duplicate, IGNORE
+otherwise we have not seen this packet yet and we need to add it to 
+our ready_to_send queue
+#endif
 void* builder_thread(void* arg){
     struct queues* q = arg;
+    /*struct mq_entry* e;*/
+    char* built_msg;
+    _Bool valid_packet;
+    struct packet* p;
 
     while(1){
+        /*need access to a shared packet storage*/
+        /*
+         * need it in builder thread ONLY i believe
+         * possibly also in process_kq_msg() because
+         * we need to be able to add 
+        */
+        p = (struct packet*)pop_mq(&q->build_fragments)->data;
+        /* TODO: i likely need a better way of determining if packets
+         * are beacons - something like two identical header fields
+         * and a /uname string
+         * WAIT we can just use the beacon bool and set variety int
+         * to a unique value that only holds true for beacons
+         * as well as setting a unique arrangement of values for
+         * the other boolean flags
+         */
+        if(p->beacon && p->variety == BEACON_MARKER){
+            insert_uname(&q->ps, p->addr, (char*)p->data);
+        }
+        if((built_msg = insert_packet(&q->ps, p->addr, p, &valid_packet))){
+            insert_kq(built_msg, q->kq_key_out);
+        }
+        /* if this is not a duplicate packet and is valid,
+         * it's time to propogate the message by adding it
+         * to our ready to send queue
+         */
+        if(valid_packet){
+            insert_mq(&q->ready_to_send, p, DATA_BYTES);
+        }
     }
 }
 
@@ -133,4 +226,8 @@ int main(){
     printf("initialized kernel queues %i, %i\n", q.kq_key_in, q.kq_key_out);
 
     spawn_thread(broadcast_thread, &q);
+    spawn_thread(process_kq_msg, &q);
+    spawn_thread(recv_packet_thread, &q);
+    spawn_thread(builder_thread, &q);
+    usleep(50000000);
 }

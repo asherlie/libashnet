@@ -139,7 +139,7 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
         free(peer->recent_packets[peer->ins_idx]);
     }
     peer->recent_packets[peer->ins_idx++] = p;
-    if(p->final_packet)ret = build_message(peer);
+    if(!p->beacon && p->final_packet)ret = build_message(peer);
 
     pthread_mutex_unlock(&ps->ps_lock);
 
