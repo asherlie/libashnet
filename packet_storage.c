@@ -21,7 +21,7 @@ void init_packet_storage(struct packet_storage* ps){
 
 struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN], struct peer** created_peer){
     int idx = sum_addr(addr);
-    struct peer* ret = ps->buckets[idx], * last;
+    struct peer* ret = ps->buckets[idx], * last = NULL;
     _Bool found = 0;
     if(!uname && !addr)return NULL;
     pthread_mutex_lock(&ps->ps_lock);
@@ -44,6 +44,7 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
             last = last->next;
         }
         else last = ps->buckets[idx] = malloc(sizeof(struct peer));
+    /*puts("CREATED");*/
         memcpy(last->addr, addr, 6);
         memcpy(last->uname, uname, UNAME_LEN);
         last->n_stored_packets = PACKET_MEMORY;
@@ -108,15 +109,26 @@ char* build_message(struct peer* peer){
     return ret;
 }
 
-/* returns whether a message has been completed */
-char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p){
+/* returns a complete message if one has been completed */
+/*
+ * should provide info on duplicate status, peer doesn't exist
+ * ACTUALLY we may not need to distinguish
+ * can just set an invalid boolean flag
+ * if invalid, free mem, don't propogate, ignore
+*/
+char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p, _Bool* valid_packet){
     struct peer* peer = lookup_peer(ps, addr, NULL, NULL);
     char* ret = NULL;
+    if(valid_packet)*valid_packet = 1;
 
-    if(!peer)return NULL;
+    if(!peer){
+        if(valid_packet)*valid_packet = 0;
+        return NULL;
+    }
     pthread_mutex_lock(&ps->ps_lock);
     if(is_duplicate(peer, p)){
         pthread_mutex_unlock(&ps->ps_lock);
+        if(valid_packet)*valid_packet = 0;
         return NULL;
     }
     p->built = 0;

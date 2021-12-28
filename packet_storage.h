@@ -1,8 +1,18 @@
+#pragma once
+
+#include <stdint.h>
+
+#define BEACON_MARKER 0xdecaf
 #define UNAME_LEN 20
 #define DATA_BYTES 32-sizeof(int)-4
 #define PACKET_MEMORY 1000
 
 struct __attribute__((__packed__)) packet{
+    uint8_t addr[6];
+    /* the below fits in 32 bytes for now, just to be safe
+     * this may be able to change once i see how i can work
+     * with the link layer headers
+     */
     uint8_t data[DATA_BYTES];
     _Bool flags[1];
     _Bool beacon;
@@ -38,4 +48,4 @@ struct packet_storage{
 
 void init_packet_storage(struct packet_storage* ps);
 struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN]);
-char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p);
+char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p, _Bool* valid_packet);
