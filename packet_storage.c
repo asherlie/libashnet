@@ -133,7 +133,7 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
 
     return ret;
 }
-#if 1
+#if 0
 
 struct packet* spoof_packet(char* str, _Bool final){
     struct packet* ret = calloc(1, sizeof(struct packet));
@@ -159,7 +159,6 @@ void p_cache(struct packet_storage* ps){
     }
 }
 
-#if 0
 int main(){
     /*assert(sizeof(struct packet) == 32);*/
     /*printf("%i\n", sizeof(struct packet));*/
