@@ -1,6 +1,8 @@
 #pragma once
 #include <pthread.h>
 
+#include "packet_storage.h"
+
 struct mq_entry{
     void* data;
     int len;
@@ -26,6 +28,12 @@ struct queues{
               /* raw recvd packets are added here after they 
                * are confirmed as part of the network */
               build_fragments;
+
+    /* access to this isn't required by all pieces of code
+     * that have access to queues struct, it's only needed
+     * by process_kq_msg() and builder_thread()
+     */
+    struct packet_storage ps;
 };
 
 void init_mq(struct mq* m);

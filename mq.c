@@ -25,7 +25,8 @@ void insert_mq(struct mq* m, void* data, int len){
         m->last = e;
     }
     pthread_mutex_unlock(&m->lock);
-    pthread_cond_signal(&m->cond);
+    pthread_cond_broadcast(&m->cond);
+    /*pthread_cond_signal(&m->cond);*/
 }
 
 struct mq_entry* pop_mq(struct mq* m){
@@ -49,7 +50,7 @@ struct mq_entry* pop_mq(struct mq* m){
 
         pthread_cond_wait(&m->cond, &tmp_lock);
 
-        /*pthread_mutex_unlock(&tmp_lock);*/
+        pthread_mutex_unlock(&tmp_lock);
 
     }
 
@@ -59,8 +60,21 @@ struct mq_entry* pop_mq(struct mq* m){
 }
 
 #if 0
+#include <unistd.h>
+
+void* delayed_add(void* mv){
+    struct mq* m = mv;
+    usleep(500000);
+    for(int i = 0; i < 10; ++i){
+        insert_mq(m, NULL, 923);
+    }
+    return NULL;
+}
+
 int main(){
     struct mq m;
+    pthread_t pth;
+
     init_mq(&m);
 
     insert_mq(&m, NULL, 50);
@@ -69,6 +83,8 @@ int main(){
     printf("%i\n", pop_mq(&m)->len);
     insert_mq(&m, NULL, 99);
 
+    printf("%i\n", pop_mq(&m)->len);
+    pthread_create(&pth, NULL, delayed_add, &m);
     printf("%i\n", pop_mq(&m)->len);
 }
 #endif
