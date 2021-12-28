@@ -70,9 +70,54 @@ void* broadcast_thread(void* arg){
     struct queues* q = arg;
     struct mq_entry* e;
     while(1){
-        puts("runnign b thread omg");
         e = pop_mq(&q->ready_to_send);
         broadcast_packet(e->data, e->len);
+    }
+}
+
+void* process_kq_msg(void* arg){
+    struct queues* q = arg;
+    uint8_t* bytes_to_send;
+    while(1){
+        bytes_to_send = pop_kq(q->kq_key_in);
+        /*
+         * we now need to split this string into celing(strlen()/(32-sizeof(int)))
+         * separate packets and add them to the ready_to_send mq
+        */
+    }
+}
+
+void* recv_packet_thread(void* arg){
+    struct queues* q = arg;
+    uint8_t* buf;
+    int len;
+
+    while(1){
+        buf = malloc(300);
+        recv_packet(buf, &len);
+        buf[len] = 0;
+        insert_mq(&q->build_fragments, buf, len);
+    }
+
+    /*
+     * if this isn't from a known user or isn't a beacon packet it should be ignored
+     * this should probably be done in a separate thread so we can keep this thread
+     * productive
+    */
+}
+
+okay, so i've now written broadcast_thread()
+recv_packet_thread()
+
+i still need to write builder_thread(), that checks if message is from a known 
+user, then adds recvd packet directly to ready_to_send queue before building messages
+
+if a message has been constructed succesfully, it's added to kq_out
+
+void* builder_thread(void* arg){
+    struct queues* q = arg;
+
+    while(1){
     }
 }
 
