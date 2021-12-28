@@ -46,6 +46,9 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
         else last = ps->buckets[idx] = malloc(sizeof(struct peer));
         memcpy(last->addr, addr, 6);
         memcpy(last->uname, uname, UNAME_LEN);
+        last->n_stored_packets = PACKET_MEMORY;
+        last->ins_idx = 0;
+        last->recent_packets = calloc(sizeof(struct packet*), last->n_stored_packets);
         last->next = NULL;
         *created_peer = last;
     }
@@ -60,6 +63,49 @@ struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname
     /* return NULL if peer already exists */
     if(lookup_peer(ps, addr, uname, &peer))return NULL;
     return peer;
+}
+
+_Bool is_duplicate(struct peer* peer, struct packet* p){
+    for(int i = 0; i < peer->n_stored_packets; ++i){
+        /* this occurs when the buffer isn't completely
+         * full and there are no duplicates
+         */
+        if(!peer->recent_packets[i])return 0;
+        if(!memcmp(peer->recent_packets[i], p, sizeof(struct packet)))return 1;
+    }
+    return 0;
+}
+
+#if 0
+need to think about how to store messages in progress
+if my circular buffer wraps around it would be complicated
+to work backwards
+would a link list be better
+i could potentially free up all data from list after each
+completed message
+and not even check for duplicates after the message is completed
+do not think this is the best approach actually
+#endif
+char* build_message(struct peer* peer, struct packet* p){
+}
+
+/* returns whether a message has been completed */
+char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p){
+    struct peer* peer = lookup_peer(ps, addr, NULL, NULL);
+    if(!peer)return NULL;
+    pthread_mutex_lock(&ps->ps_lock);
+    if(is_duplicate(peer, p)){
+        pthread_mutex_unlock(&ps->ps_lock);
+        return NULL;
+    }
+    if(peer->ins_idx == peer->n_stored_packets)
+        peer->ins_idx = 0;
+    if(peer->recent_packets[peer->ins_idx]){
+        /* if non-NULL, free */
+        free(peer->recent_packets[peer->ins_idx]);
+        peer->recent_packets[peer->ins_idx++] = p;
+    }
+    pthread_mutex_unlock(&ps->ps_lock);
 }
 #if 0
 
