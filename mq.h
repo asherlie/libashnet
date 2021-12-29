@@ -1,5 +1,6 @@
 #pragma once
 #include <pthread.h>
+#include <pcap.h>
 
 #include "packet_storage.h"
 
@@ -32,6 +33,14 @@ struct queues{
 
     char uname[DATA_BYTES-1];
     uint8_t local_addr[6];
+    /* TODO: should this be in queues?
+     * this really could just be declared within
+     * recv_packet_thread()
+     * i'm leaving it here for now in case it's necessary
+     * for broadcasting as well, so that we can share the
+     * pcap_t*
+     */
+    pcap_t* pcp;
 };
 
 void init_mq(struct mq* m);
