@@ -49,3 +49,4 @@ struct packet_storage{
 void init_packet_storage(struct packet_storage* ps);
 struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN]);
 char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p, _Bool* valid_packet);
+struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6]);

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/param.h>
 #include <stdint.h>
 
 #include "packet_storage.h"
@@ -154,8 +155,31 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
 
     return ret;
 }
-#if 0
 
+/* TODO: interesting idea! add a beacon as the first packet
+ * this way we can avoid the need for a separate beacon thread
+ */
+struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6]){
+    int n_packets, bytes_processed = 0;
+    int bytelen = strlen((char*)raw_bytes);
+    /* not sure why this is necessary */
+    int dbytes = DATA_BYTES;
+    n_packets = (bytelen/dbytes)+1;
+    /* +2 - adding a beacon packet to [0], need space for NULL terminator */
+    struct packet** packets = calloc(n_packets+2, sizeof(struct packet*));
+    for(int i = 0; i < n_packets; ++i){
+        packets[i] = calloc(1, sizeof(struct packet));
+        /* local_addr must be found programmatically, both here
+         * and in beacon packets
+         */
+        memcpy(packets[i]->addr, local_addr, 6);
+        memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
+        bytes_processed += DATA_BYTES;
+    }
+    packets[n_packets-1]->final_packet = 1;
+    return packets;
+}
+#if 0
 struct packet* spoof_packet(char* str, _Bool final){
     struct packet* ret = calloc(1, sizeof(struct packet));
     int didx = 0;

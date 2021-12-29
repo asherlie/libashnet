@@ -34,6 +34,8 @@ struct queues{
      * by process_kq_msg() and builder_thread()
      */
     struct packet_storage ps;
+
+    uint8_t local_addr[6];
 };
 
 void init_mq(struct mq* m);
