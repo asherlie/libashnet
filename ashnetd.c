@@ -1,4 +1,6 @@
 /*
+TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
+      meaningful data - this will make ashnetd more reliable
 
 ashnetd
 
@@ -54,12 +56,13 @@ each received packet that is not a duplicate will be added to the ready_queue fo
 #include "packet_storage.h"
 
 /*uint8_t local_addr[6] = {0x08, 0x011, 0x96, 0x99, 0x37, 0x90};*/
-uint8_t local_addr[6] = {32, 0, 0, 0, 0, 0};
 
 void init_queues(struct queues* q, key_t k_in, key_t k_out){
     init_mq(&q->ready_to_send);
     init_mq(&q->build_fragments);
     set_kq_key(q, k_in, k_out);
+    memset(q->local_addr, 0, 6);
+    *q->local_addr = 32;
     init_packet_storage(&q->ps);
 }
 
@@ -70,7 +73,7 @@ struct packet* recv_packet(int* len){
     struct packet* ret = calloc(1, sizeof(struct packet));
     /* every 5th message should be a beacon */
     // hmm, when i get rid of this we're still getting duplicates
-    /*ret->variety = time(NULL);*/
+    ret->variety = time(NULL);
     // get rid of THIS
     // it's actually a great feature that BEACON_MARKER overwrites
     // the four variety bytes
@@ -92,6 +95,7 @@ struct packet* recv_packet(int* len){
 }
 
 void broadcast_packet(struct packet* p, int len){
+    /* TODO: should each call to broadcast_packet() make more than one broadcast? */
     printf("broadcasting%s \"%s\"\n", (p->beacon) ? " a beacon" : "", (char*)p->data);
     (void)len;
 }
@@ -131,7 +135,7 @@ void* process_kq_msg(void* arg){
          * a kqueue - it won't be a bouncing message and certainly 
          * won't come from a nonexistent peer
          */
-        insert_packet(&q->ps, local_addr, p, NULL);
+        insert_packet(&q->ps, q->local_addr, p, NULL);
     }
 }
 
@@ -225,12 +229,16 @@ pthread_t spawn_thread(void* (*func)(void *), void* arg){
 
 int main(){
     struct queues q;
+    pthread_t threads[4];
     init_queues(&q, 857123030, 857123040);
     printf("initialized kernel queues %i, %i\n", q.kq_key_in, q.kq_key_out);
 
-    spawn_thread(broadcast_thread, &q);
-    spawn_thread(process_kq_msg, &q);
-    spawn_thread(recv_packet_thread, &q);
-    spawn_thread(builder_thread, &q);
-    usleep(50000000);
+    threads[0] = spawn_thread(broadcast_thread, &q);
+    threads[1] = spawn_thread(process_kq_msg, &q);
+    threads[2] = spawn_thread(recv_packet_thread, &q);
+    threads[3] = spawn_thread(builder_thread, &q);
+
+    for(int i = 0; i < 4; ++i){
+        pthread_join(threads[i], NULL);
+    }
 }
