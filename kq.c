@@ -13,14 +13,15 @@ struct msgbuf{
 };
 
 void set_kq_key(struct queues* q, key_t kq_in, key_t kq_out){
-    /* TODO: kqueues will be identical because time(NULL)
-     * has one second granularity
-     */
     if(kq_in > 0){
         q->kq_key_in = kq_in;
     }
     else{
-        srand(time(NULL));
+        /* subtracting a constant from time(NULL) to ensure
+         * that this and the potential next call to time()
+         * differ so that we are guaranteed two distinct kqueues
+         */
+        srand(time(NULL)-2391);
         q->kq_key_in = random();
     }
 
