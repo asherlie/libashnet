@@ -45,7 +45,6 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
             last = last->next;
         }
         else last = ps->buckets[idx] = malloc(sizeof(struct peer));
-    /*puts("CREATED");*/
         memcpy(last->addr, addr, 6);
         memcpy(last->uname, uname, UNAME_LEN);
         last->n_stored_packets = PACKET_MEMORY;
@@ -87,16 +86,6 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
     return 0;
 }
 
-#if 0
-need to think about how to store messages in progress
-if my circular buffer wraps around it would be complicated
-to work backwards
-would a link list be better
-i could potentially free up all data from list after each
-completed message
-and not even check for duplicates after the message is completed
-do not think this is the best approach actually
-#endif
 char* build_message(struct peer* peer){
     /* TODO: this is a naive long term approach
      * i need to account for wrap-arounds
@@ -156,9 +145,6 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
     return ret;
 }
 
-/* TODO: interesting idea! add a beacon as the first packet
- * this way we can avoid the need for a separate beacon thread
- */
 struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname){
     int n_packets, bytes_processed = 0;
     int bytelen = strlen((char*)raw_bytes);
@@ -180,6 +166,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
         packets[i] = calloc(1, sizeof(struct packet));
         /* local_addr must be found programmatically, both here
          * and in beacon packets
+         * this can occur only once on startup in ashnetd.c:init_queues
          */
         memcpy(packets[i]->addr, local_addr, 6);
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
