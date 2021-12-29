@@ -1,52 +1,15 @@
 /*
+ashnetd
+
+this code should ~just work~ once broadcast_packet() and recv_packet() are implemented
+
 TODO: solutions for setting uname and programmatically figuring out address
+TODO: user should be able to specify kq keys
 TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
       meaningful data - this will make ashnetd more reliable
 
 TODO: free all memory
 TODO: exit safely
-
-ashnetd
-
-we'll need to keep track of duplicates
-    this should be done by building a hash map
-    that indexes based on mac address
-    we will store the most recent n messages from
-    each address
-    if addr, ssid are exactly the same, IGNORE
-
-
-broadcast thread
-    POPS FROM READY_QUEUE
-        ready queue contains both packets cooked by bakery thread
-        as well as propogations
-
-
-    pops from a queue of messages
-    this queue will contain both raw strings of arbitrary length
-    and cooked packets that are being spread
-
-    to keep it simple, there should be a custom mq that has cooked packets
-    ready to be sent
-    ready_queue
-
-a 'bakery' thread will pop messages from sys v queue and split them into cooked packets
-adding fragments into our ready_queue
-this same ready_queue will be added to when messages are recieved in the msg_builder_thread
-
-packet_receive_thread will receive raw messages, confirm they're part of our network, and
-add them to our raw_packet_queue to be processed by packet_handler_thread
-
-packet_handler_thread will pop messages from our internal raw_packet_queue, check if our
-new messae is an exact duplicate of one already received, add usernames to
-our address username lookup structure in the event of beacon packets
-if message has no associated username, ignore it
-we then insert our new packet into our message building structure
-this insertion will return success/our new full packet in the event of a newly available
-fully constructed packet
-each time a full packet is constructed, the username and message contents are added to a sys v queue
-for the user to read from
-each received packet that is not a duplicate will be added to the ready_queue for propogation
 */
 #include <stdint.h>
 #include <unistd.h>
@@ -58,8 +21,6 @@ each received packet that is not a duplicate will be added to the ready_queue fo
 #include "mq.h"
 #include "kq.h"
 #include "packet_storage.h"
-
-/*uint8_t local_addr[6] = {0x08, 0x011, 0x96, 0x99, 0x37, 0x90};*/
 
 void init_queues(struct queues* q, key_t k_in, key_t k_out){
     init_mq(&q->ready_to_send);
@@ -125,12 +86,6 @@ void* process_kq_msg(void* arg){
          * separate packets and add them to the ready_to_send mq
         */
         pp = prep_packets(bytes_to_send, q->local_addr, q->uname);
-        /* TODO: split this message */
-        /* len should not be DATA_BYTES, but used length of DATA_BYTES */
-        for(struct packet** ppi = pp; *ppi; ++ppi){
-            insert_mq(&q->ready_to_send, *ppi, DATA_BYTES);
-        }
-        free(pp);
         /* all sent packets are added to packet storage to be checked
          * against as a duplicate
          */
@@ -139,7 +94,11 @@ void* process_kq_msg(void* arg){
          * a kqueue - it won't be a bouncing message and certainly 
          * won't come from a nonexistent peer
          */
-        /*insert_packet(&q->ps, q->local_addr, p, NULL);*/
+        /* len should not be DATA_BYTES, but used length of DATA_BYTES */
+        for(struct packet** ppi = pp; *ppi; ++ppi){
+            insert_mq(&q->ready_to_send, *ppi, DATA_BYTES);
+        }
+        free(pp);
     }
 }
 
@@ -152,51 +111,15 @@ void* recv_packet_thread(void* arg){
         p = recv_packet(&len);
         insert_mq(&q->build_fragments, p, len);
     }
-
-    /*
-     * if this isn't from a known user or isn't a beacon packet it should be ignored
-     * this should probably be done in a separate thread so we can keep this thread
-     * productive
-    */
 }
 
-/*
-okay, so i've now written broadcast_thread()
-recv_packet_thread()
-
-i still need to write builder_thread(), that checks if message is from a known 
-user, then adds recvd packet directly to ready_to_send queue before building messages
-
-if a message has been constructed succesfully, it's added to kq_out
-*/
-
-#if !1
-builder thread checks if fragments are from a known user or are beacon packetss
-if not either, free memory and ignore
-if beacon, add uname to packet storage
-if either beacon or known user, add to packet storage and check if
-a string is returned
-this string will be added to the relevant kq
-insert_packet() will take an additional argument - _Bool* is_duplicate
-which will be set to whether packet is a duplicate
-if duplicate, IGNORE
-otherwise we have not seen this packet yet and we need to add it to 
-our ready_to_send queue
-#endif
 void* builder_thread(void* arg){
     struct queues* q = arg;
-    /*struct mq_entry* e;*/
     char* built_msg;
     _Bool valid_packet;
     struct packet* p;
 
     while(1){
-        /*need access to a shared packet storage*/
-        /*
-         * need it in builder thread ONLY i believe
-         * possibly also in process_kq_msg() because
-         * we need to be able to add 
-        */
         p = (struct packet*)pop_mq(&q->build_fragments)->data;
         /* TODO: i likely need a better way of determining if packets
          * are beacons - something like two identical header fields
