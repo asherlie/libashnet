@@ -4,6 +4,9 @@ ashnetd
 this code should ~just work~ once broadcast_packet() and recv_packet() are implemented
 
 TODO: solutions for setting uname and programmatically figuring out address
+TODO: i can just use the strategy used in the original ashnet implementation
+      to find local_addr, user will have to specify wifi interface so we can
+      just use that
 TODO: user should be able to specify kq keys
 TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
       meaningful data - this will make ashnetd more reliable
@@ -21,8 +24,9 @@ TODO: exit safely
 #include "mq.h"
 #include "kq.h"
 #include "packet_storage.h"
+#include "rf.h"
 
-void init_queues(struct queues* q, key_t k_in, key_t k_out){
+_Bool init_queues(struct queues* q, key_t k_in, key_t k_out){
     init_mq(&q->ready_to_send);
     init_mq(&q->build_fragments);
     set_kq_key(q, k_in, k_out);
@@ -30,11 +34,14 @@ void init_queues(struct queues* q, key_t k_in, key_t k_out){
     strcpy(q->uname, "asher");
     *q->local_addr = 32;
     init_packet_storage(&q->ps);
+    if(!(q->pcp = internal_pcap_init("wlp3s0")))return 0;
+    return 1;
 }
 
 /*
  * okay, this should return a malloc'd packet*, beacon packets must be identified and flagged
 */
+#if 0
 struct packet* recv_packet(int* len){
     struct packet* ret = calloc(1, sizeof(struct packet));
     /* every 5th message should be a beacon */
@@ -59,6 +66,7 @@ struct packet* recv_packet(int* len){
     usleep(50000);
     return ret;
 }
+#endif
 
 void broadcast_packet(struct packet* p, int len){
     /* TODO: should each call to broadcast_packet() make more than one broadcast? */
@@ -124,7 +132,7 @@ void* recv_packet_thread(void* arg){
     int len;
 
     while(1){
-        p = recv_packet(&len);
+        p = recv_packet(q->pcp, &len);
         insert_mq(&q->build_fragments, p, len);
     }
 }
@@ -173,7 +181,11 @@ pthread_t spawn_thread(void* (*func)(void *), void* arg){
 int main(){
     struct queues q;
     pthread_t threads[4];
-    init_queues(&q, 857123030, 857123040);
+    if(!init_queues(&q, 857123030, 857123040)){
+        puts("failed to initialize shared data... are you root?");
+        return 0;
+    }
+    /* TODO: read from stdin */
     printf("initialized kernel queues %i, %i\n", q.kq_key_in, q.kq_key_out);
 
     threads[0] = spawn_thread(broadcast_thread, &q);
