@@ -4,4 +4,4 @@
 
 pcap_t* internal_pcap_init(char* iface);
 struct packet* recv_packet(pcap_t* pcp, int* len);
-void broadcast_packet(struct packet* p, int len);
+_Bool broadcast_packet(pcap_t* pcp, struct packet* p, int len);

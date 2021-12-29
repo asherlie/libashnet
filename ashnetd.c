@@ -68,18 +68,20 @@ struct packet* recv_packet(int* len){
 }
 #endif
 
+#if 0
 void broadcast_packet(struct packet* p, int len){
     /* TODO: should each call to broadcast_packet() make more than one broadcast? */
     printf("broadcasting%s \"%s\"\n", (p->beacon) ? " a beacon" : "", (char*)p->data);
     (void)len;
 }
+#endif
 
 void* broadcast_thread(void* arg){
     struct queues* q = arg;
     struct mq_entry* e;
     while(1){
         e = pop_mq(&q->ready_to_send);
-        broadcast_packet(e->data, e->len);
+        printf("%i :) \n", broadcast_packet(q->pcp, e->data, e->len));
     }
 }
 

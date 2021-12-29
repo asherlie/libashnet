@@ -14,7 +14,8 @@ struct __attribute__((__packed__)) packet{
      * with the link layer headers
      */
     uint8_t data[DATA_BYTES];
-    _Bool flags[1];
+    /* TODO: use this */
+    uint8_t dlen;
     _Bool beacon;
     _Bool built;
     _Bool final_packet;

@@ -1,5 +1,7 @@
 #include <pcap.h>
+#include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "packet_storage.h"
 
@@ -40,7 +42,7 @@ pcap_t* internal_pcap_init(char* iface){
         return NULL;
     }
 
-    if(pcap_compile(pcap_data, &bpf, "type mgt subtype probe-req", 0, PCAP_NETMASK_UNKNOWN) == -1){
+    if(pcap_compile(pcap_data, &bpf, "type mgt subtype beacon", 0, PCAP_NETMASK_UNKNOWN) == -1){
         puts("pcap_compile() failed");
         return NULL;
     }
@@ -58,9 +60,31 @@ pcap_t* internal_pcap_init(char* iface){
 
 struct packet* recv_packet(pcap_t* pcp, int* len){
     struct pcap_pkthdr hdr;
+    struct rtap_hdr* rhdr;
     struct packet* pkt = calloc(1, sizeof(struct packet));
+    /* will this ever return NULL? */
     const uint8_t* raw_data = pcap_next(pcp, &hdr);
-    (void)len;
-    (void)raw_data;
+
+    rhdr = (struct rtap_hdr*)raw_data;
+    *len = hdr.len;
+    #if 0
+    for(int i = 0; i < (int)hdr.len; ++i){
+        if(i % 8 == 0)puts("");
+        if(isalnum(raw_data[i]))printf("%i/%.4i/%c ", rhdr->it_len, i, raw_data[i]);
+        else printf("         ");
+    }
+    #endif
+    if(raw_data[rhdr->it_len+38] != 'o' && 
+       raw_data[rhdr->it_len+38] != 'n' && 
+       raw_data[rhdr->it_len+38] != 'G' && 
+       raw_data[rhdr->it_len+38] != 'M' && 
+       raw_data[rhdr->it_len+38] != '$')
+    printf("got packet with data: \"%s\"\n", raw_data+rhdr->it_len+38);
+    /*memcpy(pkt->data, raw_data+rhdr->it_len+38, );*/
     return pkt;
+}
+
+/* TODO: can we reuse our pcap_t? */
+_Bool broadcast_packet(pcap_t* pcp, struct packet* p, int len){
+    return pcap_inject(pcp, p, len) == len;
 }
