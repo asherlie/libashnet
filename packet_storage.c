@@ -145,7 +145,7 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
     return ret;
 }
 
-struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname){
+struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname, int variety){
     int n_packets, bytes_processed = 0;
     int bytelen = strlen((char*)raw_bytes);
     /* not sure why this is necessary */
@@ -170,6 +170,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
          */
         memcpy(packets[i]->addr, local_addr, 6);
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
+        packets[i]->variety = variety;
         bytes_processed += DATA_BYTES;
     }
     packets[n_packets-1]->final_packet = 1;

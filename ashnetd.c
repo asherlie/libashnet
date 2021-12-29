@@ -39,7 +39,7 @@ struct packet* recv_packet(int* len){
     struct packet* ret = calloc(1, sizeof(struct packet));
     /* every 5th message should be a beacon */
     // hmm, when i get rid of this we're still getting duplicates
-    ret->variety = time(NULL);
+    /*ret->variety = time(NULL);*/
     // get rid of THIS
     // it's actually a great feature that BEACON_MARKER overwrites
     // the four variety bytes
@@ -56,7 +56,7 @@ struct packet* recv_packet(int* len){
     ret->data[2] = 'h';
     ret->final_packet = 1;
     *len = 3;
-    usleep(500000);
+    usleep(50000);
     return ret;
 }
 
@@ -75,17 +75,33 @@ void* broadcast_thread(void* arg){
     }
 }
 
-void* process_kq_msg(void* arg){
+void* process_kq_msg_thread(void* arg){
     struct queues* q = arg;
     uint8_t* bytes_to_send;
     struct packet** pp;
+    int batch_num = 0;
     while(1){
         bytes_to_send = pop_kq(q->kq_key_in);
         /*
          * we now need to split this string into celing(strlen()/(32-sizeof(int)))
          * separate packets and add them to the ready_to_send mq
         */
-        pp = prep_packets(bytes_to_send, q->local_addr, q->uname);
+        /* adding variety bytes in case this is identical to a recently sent message
+         * if i don't do this, the following:
+         * > hi
+         * > hello
+         * > hi
+         * > hi
+         *
+         * would show up as:
+         *
+         * > hi
+         * > hello
+         *
+         * this can be revisited, but for now duplicate detection is mostly meant
+         * to simply be a base case to stop propogation 
+         */
+        pp = prep_packets(bytes_to_send, q->local_addr, q->uname, batch_num++);
         /* all sent packets are added to packet storage to be checked
          * against as a duplicate
          */
@@ -161,7 +177,7 @@ int main(){
     printf("initialized kernel queues %i, %i\n", q.kq_key_in, q.kq_key_out);
 
     threads[0] = spawn_thread(broadcast_thread, &q);
-    threads[1] = spawn_thread(process_kq_msg, &q);
+    threads[1] = spawn_thread(process_kq_msg_thread, &q);
     threads[2] = spawn_thread(recv_packet_thread, &q);
     threads[3] = spawn_thread(builder_thread, &q);
 
