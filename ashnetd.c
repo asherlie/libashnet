@@ -1,6 +1,10 @@
 /*
+TODO: solutions for setting uname and programmatically figuring out address
 TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
       meaningful data - this will make ashnetd more reliable
+
+TODO: free all memory
+TODO: exit safely
 
 ashnetd
 
@@ -62,6 +66,7 @@ void init_queues(struct queues* q, key_t k_in, key_t k_out){
     init_mq(&q->build_fragments);
     set_kq_key(q, k_in, k_out);
     memset(q->local_addr, 0, 6);
+    strcpy(q->uname, "asher");
     *q->local_addr = 32;
     init_packet_storage(&q->ps);
 }
@@ -112,21 +117,20 @@ void* broadcast_thread(void* arg){
 void* process_kq_msg(void* arg){
     struct queues* q = arg;
     uint8_t* bytes_to_send;
-    struct packet* p;
+    struct packet** pp;
     while(1){
         bytes_to_send = pop_kq(q->kq_key_in);
-        /*printf("goint to send %s\n", (char*)bytes_to_send);*/
-        p = calloc(1, sizeof(struct packet));
-        strncpy((char*)p->data, (char*)bytes_to_send, DATA_BYTES);
-        p->beacon = 0;
-        p->final_packet = 1;
         /*
          * we now need to split this string into celing(strlen()/(32-sizeof(int)))
          * separate packets and add them to the ready_to_send mq
         */
+        pp = prep_packets(bytes_to_send, q->local_addr, q->uname);
         /* TODO: split this message */
         /* len should not be DATA_BYTES, but used length of DATA_BYTES */
-        insert_mq(&q->ready_to_send, p, DATA_BYTES);
+        for(struct packet** ppi = pp; *ppi; ++ppi){
+            insert_mq(&q->ready_to_send, *ppi, DATA_BYTES);
+        }
+        free(pp);
         /* all sent packets are added to packet storage to be checked
          * against as a duplicate
          */
@@ -135,7 +139,7 @@ void* process_kq_msg(void* arg){
          * a kqueue - it won't be a bouncing message and certainly 
          * won't come from a nonexistent peer
          */
-        insert_packet(&q->ps, q->local_addr, p, NULL);
+        /*insert_packet(&q->ps, q->local_addr, p, NULL);*/
     }
 }
 

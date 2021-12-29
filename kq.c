@@ -9,7 +9,7 @@
 
 struct msgbuf{
     long mtype;
-    char mdata[KQ_MAX];
+    char mdata[KQ_MAX+1];
 };
 
 void set_kq_key(struct queues* q, key_t kq_in, key_t kq_out){

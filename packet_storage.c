@@ -159,7 +159,7 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
 /* TODO: interesting idea! add a beacon as the first packet
  * this way we can avoid the need for a separate beacon thread
  */
-struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6]){
+struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname){
     int n_packets, bytes_processed = 0;
     int bytelen = strlen((char*)raw_bytes);
     /* not sure why this is necessary */
@@ -167,7 +167,16 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6]){
     n_packets = (bytelen/dbytes)+1;
     /* +2 - adding a beacon packet to [0], need space for NULL terminator */
     struct packet** packets = calloc(n_packets+2, sizeof(struct packet*));
-    for(int i = 0; i < n_packets; ++i){
+
+    /* setting up beacon */
+    (*packets) = calloc(1, sizeof(struct packet));
+    (*packets)->beacon = 1;
+    (*packets)->variety = BEACON_MARKER;
+    (*packets)->final_packet = 1;
+    memcpy((*packets)->addr, local_addr, 6);
+    memcpy((*packets)->data, uname, strlen(uname));
+    
+    for(int i = 1; i < n_packets+1; ++i){
         packets[i] = calloc(1, sizeof(struct packet));
         /* local_addr must be found programmatically, both here
          * and in beacon packets

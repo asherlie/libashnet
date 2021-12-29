@@ -35,6 +35,7 @@ struct queues{
      */
     struct packet_storage ps;
 
+    char uname[DATA_BYTES-1];
     uint8_t local_addr[6];
 };
 
