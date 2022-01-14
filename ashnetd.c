@@ -3,6 +3,12 @@ ashnetd
 
 this code should ~just work~ once broadcast_packet() and recv_packet() are implemented
 
+TODO: i might need to include a src_addr field that takes up more of our data
+      bytes - pcap_inject(3) manual states: "source link-layer address, if the
+      header contains such an address, might be changed to be the address
+      assigned to the interface on which the packet it sent"
+      MIGHT also have more luck with setting bssid field as true from_addr
+
 TODO: solutions for setting uname and programmatically figuring out address
 TODO: i can just use the strategy used in the original ashnet implementation
       to find local_addr, user will have to specify wifi interface so we can
@@ -26,15 +32,16 @@ TODO: exit safely
 #include "packet_storage.h"
 #include "rf.h"
 
-_Bool init_queues(struct queues* q, key_t k_in, key_t k_out){
+_Bool init_queues(struct queues* q, key_t k_in, key_t k_out, char* uname, char* iface){
     init_mq(&q->ready_to_send);
     init_mq(&q->build_fragments);
     set_kq_key(q, k_in, k_out);
-    memset(q->local_addr, 0, 6);
-    strcpy(q->uname, "asher");
-    *q->local_addr = 32;
+    strcpy(q->uname, uname);
+    get_local_addr(iface, q->local_addr);
+    
     init_packet_storage(&q->ps);
-    if(!(q->pcp = internal_pcap_init("wlp3s0")))return 0;
+    insert_uname(&q->ps, q->local_addr, q->uname);
+    if(!(q->pcp = internal_pcap_init(iface)))return 0;
     return 1;
 }
 
@@ -122,6 +129,7 @@ void* process_kq_msg_thread(void* arg){
          */
         /* len should not be DATA_BYTES, but used length of DATA_BYTES */
         for(struct packet** ppi = pp; *ppi; ++ppi){
+            insert_packet(&q->ps, (*ppi)->addr, *ppi, NULL);
             insert_mq(&q->ready_to_send, *ppi, DATA_BYTES);
         }
         free(pp);
@@ -159,9 +167,11 @@ void* builder_thread(void* arg){
          * pass through, even if they're duplicates
          */
         if(p->beacon && p->variety == BEACON_MARKER){
-            insert_uname(&q->ps, p->addr, (char*)p->data);
+            if(insert_uname(&q->ps, p->addr, (char*)p->data))
+                puts("added a uname!");
         }
         if((built_msg = insert_packet(&q->ps, p->addr, p, &valid_packet))){
+            puts("completed a message!");
             insert_kq(built_msg, q->kq_key_out);
         }
         /* if this is not a duplicate packet and is valid,
@@ -169,6 +179,8 @@ void* builder_thread(void* arg){
          * to our ready to send queue
          */
         if(valid_packet){
+            puts("  received a valid message");
+            printf("propogating %s\n", (char*)p->data);
             insert_mq(&q->ready_to_send, p, DATA_BYTES);
         }
     }
@@ -183,7 +195,7 @@ pthread_t spawn_thread(void* (*func)(void *), void* arg){
 int main(){
     struct queues q;
     pthread_t threads[4];
-    if(!init_queues(&q, 857123030, 857123040)){
+    if(!init_queues(&q, 857123030, 857123040, "asher", "wlp3s0")){
         puts("failed to initialize shared data... are you root?");
         return 0;
     }

@@ -170,6 +170,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
          */
         memcpy(packets[i]->addr, local_addr, 6);
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
+        printf("setting variety packet to %i\n", variety);
         packets[i]->variety = variety;
         bytes_processed += DATA_BYTES;
     }
