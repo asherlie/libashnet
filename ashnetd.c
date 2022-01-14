@@ -192,7 +192,53 @@ pthread_t spawn_thread(void* (*func)(void *), void* arg){
     return ret;
 }
 
-int main(){
+void parse_args(int a, char** b, char** uname, char** iface, key_t* k_in, key_t* k_out){
+    _Bool set_uname = 0, set_iface = 0, set_k_in = 0, set_k_out = 0;
+
+    for(int i = 1; i < a; ++i){
+        if(set_uname){
+            *uname = b[i];
+            set_uname = 0;
+            continue;
+        }
+        if(set_iface){
+            *iface = b[i];
+            set_iface = 0;
+            continue;
+        }
+        if(set_k_in){
+            *k_in = atoi(b[i]);
+            set_k_in = 0;
+            continue;
+        }
+        if(set_k_out){
+            *k_out = atoi(b[i]);
+            set_k_out = 0;
+            continue;
+        }
+        if(*b[i] == '-'){
+            switch(b[i][1]){
+                case 'U':
+                case 'u':
+                    set_uname = 1;
+                    break;
+                case 'I':
+                case 'i':
+                    set_iface = 1;
+                    break;
+                case 'K':
+                case 'k':
+                    set_k_in |= b[i][2] == 'I';
+                    set_k_in |= b[i][2] == 'i';
+                    set_k_out |= b[i][2] == 'O';
+                    set_k_out |= b[i][2] == 'o';
+                    break;
+            }
+        }
+    }
+}
+
+int main(int a, char** b){
     struct queues q;
     pthread_t threads[4];
     if(!init_queues(&q, 857123030, 857123040, "asher", "wlp3s0")){
