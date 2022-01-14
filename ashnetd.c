@@ -240,13 +240,17 @@ void parse_args(int a, char** b, char** uname, char** iface, key_t* k_in, key_t*
 
 int main(int a, char** b){
     struct queues q;
-    key_t ki = -1, ko = -1;
+    /* initializing to 0 so that they're randomized by set_kq_key() if need be */
+    key_t ki = 0, ko = 0;
     char* uname = NULL, * iface = NULL;
     pthread_t threads[4];
 
     parse_args(a, b, &uname, &iface, &ki, &ko);
 
-    /*if(!init_queues(&q, 857123030, 857123040, "asher", "wlp3s0")){*/
+    if(!(uname && iface)){
+        puts("username and wifi interface must be provided");
+        return 0;
+    }
     if(!init_queues(&q, ki, ko, uname, iface)){
         puts("failed to initialize shared data... are you root?");
         return 0;

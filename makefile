@@ -13,3 +13,7 @@ ashnetd: ashnetd.c kq.o mq.o packet_storage.o rf.o
 .PHONY:
 clean:
 	rm -f ashnetd *.o
+
+.PHONY:
+run: ashnetd
+	sudo ./ashnetd -ki 857123030 -ko 857123040 -u asher -i wlp3s0
