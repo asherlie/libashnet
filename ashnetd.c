@@ -180,6 +180,7 @@ void* builder_thread(void* arg){
          */
         if(valid_packet){
             puts("  received a valid message");
+            printf("final: %i\n", p->final_packet);
             printf("propogating %s\n", (char*)p->data);
             insert_mq(&q->ready_to_send, p, DATA_BYTES);
         }

@@ -174,7 +174,8 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
         packets[i]->variety = variety;
         bytes_processed += DATA_BYTES;
     }
-    packets[n_packets-1]->final_packet = 1;
+    /* n_packets-1 isn't the last index due to initial beacon */
+    packets[n_packets]->final_packet = 1;
     return packets;
 }
 #if 0
@@ -220,18 +221,18 @@ int main(){
 
     /*printf("%s\n", lookup_peer(&ps, (uint8_t*)uname, NULL , NULL)->uname);*/
 
-    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("asher ", 0));
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("asher ", 0), NULL);
     if(built_msg)puts(built_msg);
     // this seg faults
-    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("is ", 0));
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("is ", 0), NULL);
     if(built_msg)puts(built_msg);
-    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("a ", 0));
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("a ", 0), NULL);
     if(built_msg)puts(built_msg);
-    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("good ", 0));
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("good ", 0), NULL);
     if(built_msg)puts(built_msg);
-    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("guy ", 0));
-    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("and ", 0));
-    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("i love the fella", 1));
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("guy ", 0), NULL);
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("and ", 0), NULL);
+    built_msg = insert_packet(&ps, (uint8_t*)uname, spoof_packet("i like the fella", 1), NULL);
     if(built_msg)puts(built_msg);
     p_cache(&ps);
 }
