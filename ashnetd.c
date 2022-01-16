@@ -1,3 +1,25 @@
+#if 0
+note:
+    i need to daemonize and allow clients to safely exit the daemon
+    LOOK INTO SYSTEMD-IZING IT
+
+    should daemon be with systemd?
+    or should i fork() and build in functionality to ashnetd
+    ashnetd -d for daemon
+    ashnetd -k to kill running daemons?
+    this might be necessary when porting over ashnetd for mac os/windows
+
+    look through all TODOs, implement relevant ones
+
+    MEMORY GROWS OVER TIME, AS SHOWN BY systemctl status
+    WHY?
+    are unames being added before verification?
+    lack of free()d mem?
+
+    we can keep print statements, they just end up being shown in systemctl status
+    BUT they should be helpful
+    they should only be "ADDED UNAME _ TO STORAGE" and "RECEIVED MESSAGE _, (PROPOGATING/FOUND TO BE A DUPLICATE)"
+#endif
 /*
 ashnetd
 
@@ -88,7 +110,7 @@ void* broadcast_thread(void* arg){
     struct mq_entry* e;
     while(1){
         e = pop_mq(&q->ready_to_send);
-        printf("%i :) \n", broadcast_packet(q->pcp, e->data, e->len));
+        broadcast_packet(q->pcp, e->data, e->len);
     }
 }
 
@@ -168,10 +190,9 @@ void* builder_thread(void* arg){
          */
         if(p->beacon && p->variety == BEACON_MARKER){
             if(insert_uname(&q->ps, p->addr, (char*)p->data))
-                puts("added a uname!");
+                printf("RECOGNIZED UNAME \"%s\"\n", (char*)p->data);
         }
         if((built_msg = insert_packet(&q->ps, p->addr, p, &valid_packet))){
-            puts("completed a message!");
             insert_kq(built_msg, q->kq_key_out);
         }
         /* if this is not a duplicate packet and is valid,
@@ -179,9 +200,6 @@ void* builder_thread(void* arg){
          * to our ready to send queue
          */
         if(valid_packet){
-            puts("  received a valid message");
-            printf("final: %i\n", p->final_packet);
-            printf("propogating %s\n", (char*)p->data);
             insert_mq(&q->ready_to_send, p, DATA_BYTES);
         }
     }
@@ -193,8 +211,9 @@ pthread_t spawn_thread(void* (*func)(void *), void* arg){
     return ret;
 }
 
-void parse_args(int a, char** b, char** uname, char** iface, key_t* k_in, key_t* k_out){
-    _Bool set_uname = 0, set_iface = 0, set_k_in = 0, set_k_out = 0;
+/* returns whether or not we should run as a daemon */
+_Bool parse_args(int a, char** b, char** uname, char** iface, key_t* k_in, key_t* k_out){
+    _Bool set_uname = 0, set_iface = 0, set_k_in = 0, set_k_out = 0, daemon = 0;
 
     for(int i = 1; i < a; ++i){
         if(set_uname){
@@ -219,6 +238,10 @@ void parse_args(int a, char** b, char** uname, char** iface, key_t* k_in, key_t*
         }
         if(*b[i] == '-'){
             switch(b[i][1]){
+                case 'D':
+                case 'd':
+                    daemon = 1;
+                    break;
                 case 'U':
                 case 'u':
                     set_uname = 1;
@@ -237,6 +260,7 @@ void parse_args(int a, char** b, char** uname, char** iface, key_t* k_in, key_t*
             }
         }
     }
+    return daemon;
 }
 
 int main(int a, char** b){

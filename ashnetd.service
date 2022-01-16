@@ -1,13 +1,13 @@
 [Unit]
 Description=ashnetd
-#After=network.target
 
 [Service]
 Type=simple
 Restart=always
 RestartSec=1
 User=root
-ExecStart=/home/asher/libashnet/ashnetd -ki 857123030 -ko 857123040 -u ASHER -i wlp3s0
+#ExecStart=/home/asher/libashnet/ashnetd -ki 857123030 -ko 857123040 -u ASHER -i wlp3s0
+ExecStart=ashnetd -ki 857123030 -ko 857123040 -u ASHER -i wlp3s0
 
 [Install]
 WantedBy=multi-user.target

@@ -277,7 +277,7 @@ uint8_t* gen_packet(struct packet* p, int* packet_len){
     struct ieee80211_beacon* eh = (struct ieee80211_beacon*)(packet+sizeof(struct rtap_hdr));
 
     /* just copying over some bytes to try out */
-    printf("siz %li\n", MIN(sizeof(rpz), *packet_len));
+    /*printf("siz %li\n", MIN(sizeof(rpz), *packet_len));*/
     memcpy(packet, rpz, MIN(sizeof(rpz), *packet_len));
     rth->it_version = 0;
     rth->it_len = htons(sizeof(struct rtap_hdr));
