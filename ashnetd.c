@@ -186,13 +186,25 @@ void* recv_packet_thread(void* arg){
     }
 }
 
+int construct_msg(char* buf, char* built_msg, struct packet* p, struct packet_storage* ps){
+    struct peer* user = lookup_peer(ps, p->from_addr, NULL, NULL);
+
+    memset(buf, 0, 1000);
+    return snprintf(buf, 1000, "%hx:%hx:%hx:%hx:%hx:%hx,%s,%s", 
+                    p->from_addr[0], p->from_addr[1], p->from_addr[2],
+                    p->from_addr[3], p->from_addr[4], p->from_addr[5],
+                    user->uname, built_msg);
+}
+
 void* builder_thread(void* arg){
     struct queues* q = arg;
-    char* built_msg;
+    /* KQ_MAX */
+    char* built_msg, constructed_msg[1000];
     _Bool valid_packet;
     struct packet* p;
 
     while(1){
+        /* TODO: i need to free pop_mq() return val */
         p = (struct packet*)pop_mq(&q->build_fragments)->data;
         /* TODO: i likely need a better way of determining if packets
          * are beacons - something like two identical header fields
@@ -206,12 +218,12 @@ void* builder_thread(void* arg){
          * pass through, even if they're duplicates
          */
         if(p->beacon && p->variety == BEACON_MARKER){
-            if(insert_uname(&q->ps, p->from_addr, (char*)p->data))
-                printf("RECOGNIZED UNAME \"%s\"\n", (char*)p->data);
+            insert_uname(&q->ps, p->from_addr, (char*)p->data);
         }
         if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
-            insert_kq(built_msg, q->kq_key_out);
+            construct_msg(constructed_msg, built_msg, p, &q->ps);
             free(built_msg);
+            insert_kq(constructed_msg, q->kq_key_out);
         }
         /* if this is not a duplicate packet and is valid,
          * it's time to propogate the message by adding it
