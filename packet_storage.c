@@ -59,6 +59,7 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
     return ret;
 }
 
+/* TODO: args 1 and 2 can be consolidated */
 struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN]){
     struct peer* peer;
     /* return NULL if peer already exists */
@@ -77,8 +78,10 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
         /* need to check fields independently due to built byte 
          * varying based on build_message() progress
          */
-        if(!memcmp(peer->addr, p->addr, 6) &&
+        if(!memcmp(peer->addr, p->from_addr, 6) &&
            !memcmp(peer->recent_packets[i]->data, p->data, DATA_BYTES) &&
+           /* this check is redundant, already checking peer->addr */
+           !memcmp(peer->recent_packets[i]->from_addr, p->from_addr, 6) &&
            peer->recent_packets[i]->beacon == p->beacon &&
            peer->recent_packets[i]->final_packet == p->final_packet &&
            peer->recent_packets[i]->variety == p->variety)return 1;
@@ -160,6 +163,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
     (*packets)->variety = BEACON_MARKER;
     (*packets)->final_packet = 1;
     memcpy((*packets)->addr, local_addr, 6);
+    memcpy((*packets)->from_addr, local_addr, 6);
     memcpy((*packets)->data, uname, strlen(uname));
     
     for(int i = 1; i < n_packets+1; ++i){
@@ -169,6 +173,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
          * this can occur only once on startup in ashnetd.c:init_queues
          */
         memcpy(packets[i]->addr, local_addr, 6);
+        memcpy(packets[i]->from_addr, local_addr, 6);
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
         packets[i]->variety = variety;
         bytes_processed += DATA_BYTES;

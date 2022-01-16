@@ -3,8 +3,8 @@
 #include <stdint.h>
 
 #define BEACON_MARKER 0xdecaf
-#define UNAME_LEN 20
-#define DATA_BYTES 32-sizeof(int)-4
+#define DATA_BYTES 32-sizeof(int)-4-6
+#define UNAME_LEN DATA_BYTES-1
 #define PACKET_MEMORY 1000
 
 /*
@@ -44,6 +44,8 @@ struct __attribute__((__packed__)) packet{
      * with the link layer headers
      */
     /* only need one byte - dlen <= 32 */
+    /* original sender address */
+    uint8_t from_addr[6];
     uint8_t dlen;
     uint8_t data[DATA_BYTES];
     _Bool beacon;
@@ -51,6 +53,7 @@ struct __attribute__((__packed__)) packet{
     _Bool final_packet;
     int variety;
     /* first 32 over */
+    /* immediate sender address */
     uint8_t addr[6];
     //struct compact_packet cp_internal;
 };

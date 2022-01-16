@@ -151,7 +151,7 @@ void* process_kq_msg_thread(void* arg){
          */
         /* len should not be DATA_BYTES, but used length of DATA_BYTES */
         for(struct packet** ppi = pp; *ppi; ++ppi){
-            insert_packet(&q->ps, (*ppi)->addr, *ppi, NULL);
+            insert_packet(&q->ps, (*ppi)->from_addr, *ppi, NULL);
             insert_mq(&q->ready_to_send, *ppi, DATA_BYTES);
         }
         free(pp);
@@ -189,11 +189,12 @@ void* builder_thread(void* arg){
          * pass through, even if they're duplicates
          */
         if(p->beacon && p->variety == BEACON_MARKER){
-            if(insert_uname(&q->ps, p->addr, (char*)p->data))
+            if(insert_uname(&q->ps, p->from_addr, (char*)p->data))
                 printf("RECOGNIZED UNAME \"%s\"\n", (char*)p->data);
         }
-        if((built_msg = insert_packet(&q->ps, p->addr, p, &valid_packet))){
+        if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
             insert_kq(built_msg, q->kq_key_out);
+            free(built_msg);
         }
         /* if this is not a duplicate packet and is valid,
          * it's time to propogate the message by adding it
