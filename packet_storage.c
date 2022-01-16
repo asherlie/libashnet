@@ -29,6 +29,17 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
     for(; ret; ret = ret->next){
         if(!ret->next)last = ret;
         if((addr && memcmp(ret->addr, addr, 6)))continue;
+        /* the data after NUL bytes are sometimes diff
+         * TODO: confirm that this has been fixed
+         */
+        #if 0
+        if(uname){
+            for(long unsigned int i = 0; i < UNAME_LEN; ++i){
+                printf("%li ('%c' '%c')\n", i,ret->uname[i], uname[i]);
+                /*fflush(stdout);*/
+            }
+        }
+        #endif
         if((uname && memcmp(ret->uname, uname, UNAME_LEN)))continue;
         found = 1;
         break;

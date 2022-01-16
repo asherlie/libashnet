@@ -58,6 +58,7 @@ _Bool init_queues(struct queues* q, key_t k_in, key_t k_out, char* uname, char* 
     init_mq(&q->ready_to_send);
     init_mq(&q->build_fragments);
     set_kq_key(q, k_in, k_out);
+    memset(q->uname, 0, UNAME_LEN);
     strcpy(q->uname, uname);
     get_local_addr(iface, q->local_addr);
     
@@ -110,13 +111,24 @@ void* broadcast_thread(void* arg){
     struct mq_entry* e;
     while(1){
         e = pop_mq(&q->ready_to_send);
+        /* TODO: find out why duplicates are being
+         * sent. ~5 pairs of beacons/data are being
+         * transmitted for each broadcast_packet() call
+         * TODO: i believe i fixed this, look into it
+         */
         broadcast_packet(q->pcp, e->data, e->len);
+        /* e->data should not be freed, this memory is
+         * managed in packet storage and is still in
+         * use to check for duplicates
+         */
+        free(e);
     }
 }
 
 void* process_kq_msg_thread(void* arg){
     struct queues* q = arg;
     uint8_t* bytes_to_send;
+    char* discard;
     struct packet** pp;
     int batch_num = 0;
     while(1){
@@ -151,7 +163,12 @@ void* process_kq_msg_thread(void* arg){
          */
         /* len should not be DATA_BYTES, but used length of DATA_BYTES */
         for(struct packet** ppi = pp; *ppi; ++ppi){
-            insert_packet(&q->ps, (*ppi)->from_addr, *ppi, NULL);
+            /* free up memory from built self-sent messages
+             * built can't be pre-set to 1 because insert_packet()
+             * will overwrite that upon insertion
+             * the most consistent solution is to just free built messages
+             */
+            if((discard = insert_packet(&q->ps, (*ppi)->from_addr, *ppi, NULL)))free(discard);
             insert_mq(&q->ready_to_send, *ppi, DATA_BYTES);
         }
         free(pp);
@@ -203,6 +220,7 @@ void* builder_thread(void* arg){
         if(valid_packet){
             insert_mq(&q->ready_to_send, p, DATA_BYTES);
         }
+        else free(p);
     }
 }
 
