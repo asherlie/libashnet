@@ -16,6 +16,11 @@ note:
     are unames being added before verification?
     lack of free()d mem?
 
+    it is likely just packet storage being used, after a while this storage should
+    be static - once it is at capacity
+
+    MORE is being used than it should be though. discarded packets MUST be taking up space
+
     we can keep print statements, they just end up being shown in systemctl status
     BUT they should be helpful
     they should only be "ADDED UNAME _ TO STORAGE" and "RECEIVED MESSAGE _, (PROPOGATING/FOUND TO BE A DUPLICATE)"
@@ -198,6 +203,7 @@ int construct_msg(char* buf, char* built_msg, struct packet* p, struct packet_st
 
 void* builder_thread(void* arg){
     struct queues* q = arg;
+    struct mq_entry* mqe;
     /* KQ_MAX */
     char* built_msg, constructed_msg[1000];
     _Bool valid_packet;
@@ -205,7 +211,9 @@ void* builder_thread(void* arg){
 
     while(1){
         /* TODO: i need to free pop_mq() return val */
-        p = (struct packet*)pop_mq(&q->build_fragments)->data;
+        mqe = pop_mq(&q->build_fragments);
+        p = mqe->data;
+        free(mqe);
         /* TODO: i likely need a better way of determining if packets
          * are beacons - something like two identical header fields
          * and a /uname string
