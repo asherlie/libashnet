@@ -53,7 +53,6 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
         */
         if(uname){
             if(memcmp(ret->uname, uname, UNAME_LEN)){
-                if(addr)puts("UPDATED UNAME");
                 /* if address matches but not uname, we must update uname */
                 if(addr)
                     /* updating uname, not continuing - found = 1, break implicitly */
