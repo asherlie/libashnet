@@ -137,6 +137,11 @@ void* process_kq_msg_thread(void* arg){
     struct packet** pp;
     int batch_num = 0;
     while(1){
+        /* TODO: hmm, the first message of each session
+         * doesn't get sent. could it be a problem with
+         * prep_packets()?
+         * with pop_kq()?
+         */
         bytes_to_send = pop_kq(q->kq_key_in);
         /*
          * we now need to split this string into celing(strlen()/(32-sizeof(int)))
