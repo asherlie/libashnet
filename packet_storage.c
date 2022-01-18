@@ -29,7 +29,7 @@ void init_packet_storage(struct packet_storage* ps){
 struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN], struct peer** created_peer){
     int idx = sum_addr(addr);
     struct peer* ret = ps->buckets[idx], * last = NULL;
-    _Bool found = 0, uname_match = 1;
+    _Bool found = 0;
     if(!uname && !addr)return NULL;
     pthread_mutex_lock(&ps->ps_lock);
     for(; ret; ret = ret->next){
@@ -52,8 +52,7 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
          * addr always trumps because it's 1:1 there are guaranteed no duplicates
         */
         if(uname){
-            uname_match = !memcmp(ret->uname, uname, UNAME_LEN);
-            if(!uname_match){
+            if(memcmp(ret->uname, uname, UNAME_LEN)){
                 if(addr)puts("UPDATED UNAME");
                 /* if address matches but not uname, we must update uname */
                 if(addr)
