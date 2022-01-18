@@ -20,10 +20,16 @@ void init_packet_storage(struct packet_storage* ps){
     memset(ps->buckets, 0, sizeof(struct peer*)*1531);
 }
 
+/*
+ * lookup_peer() should return the found peer matching addr, if addr is not provided, it will return
+ * the peer matching uname
+ * if uname is provided and doesn't match existing uname, uname will be updated
+ * if created_peer is set and no match is found, it will be created
+*/
 struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN], struct peer** created_peer){
     int idx = sum_addr(addr);
     struct peer* ret = ps->buckets[idx], * last = NULL;
-    _Bool found = 0;
+    _Bool found = 0, uname_match = 1;
     if(!uname && !addr)return NULL;
     pthread_mutex_lock(&ps->ps_lock);
     for(; ret; ret = ret->next){
@@ -40,7 +46,24 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
             }
         }
         #endif
-        if((uname && memcmp(ret->uname, uname, UNAME_LEN)))continue;
+        
+        /*
+         * if uname && addr, we shouldn't narrow based on uname ONLY addr
+         * addr always trumps because it's 1:1 there are guaranteed no duplicates
+        */
+        if(uname){
+            uname_match = !memcmp(ret->uname, uname, UNAME_LEN);
+            if(!uname_match){
+                if(addr)puts("UPDATED UNAME");
+                /* if address matches but not uname, we must update uname */
+                if(addr)
+                    /* updating uname, not continuing - found = 1, break implicitly */
+                    memcpy(ret->uname, uname, UNAME_LEN);
+                /* if we're searching only with uname, keep on lookin' */
+                else continue;
+            }
+            /* if(uname_match), we will just continue on and set found to 1 and break */
+        }
         found = 1;
         break;
     }
@@ -71,6 +94,7 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
 }
 
 /* TODO: args 1 and 2 can be consolidated */
+/* returns whether an entirely new entry has been created */
 struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN]){
     struct peer* peer;
     /* return NULL if peer already exists */
