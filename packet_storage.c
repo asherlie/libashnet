@@ -123,7 +123,7 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
            peer->recent_packets[i]->beacon == p->beacon &&
            peer->recent_packets[i]->final_packet == p->final_packet &&
            peer->recent_packets[i]->variety == p->variety)return 1;
-           #endif
+        #endif
     }
     p->built = built_backup;
     return 0;
@@ -136,9 +136,15 @@ char* build_message(struct peer* peer){
     /* TODO: this should be calculated more precisely */
     char* ret = calloc(1, peer->ins_idx*DATA_BYTES);
     int ret_idx = 0;
+    /* most recent packet is guaranteed to be here, as it
+     * was inserted just before the call to build_message()
+     * and the ps_lock has not been released
+     */
+    uint8_t mtype = peer->recent_packets[peer->ins_idx-1]->mtype;
     _Bool recording = 0;
     for(int i = 0; i < peer->ins_idx; ++i){
         if(peer->recent_packets[i]->beacon)continue;
+        if(peer->recent_packets[i]->mtype != mtype)continue;
         if(!peer->recent_packets[i]->built)recording = 1;
         if(recording){
             strncpy(ret+ret_idx, (char*)peer->recent_packets[i]->data, DATA_BYTES);
@@ -188,7 +194,7 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
     return ret;
 }
 
-struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname, int variety){
+struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname, int variety, uint8_t mtype){
     int n_packets, bytes_processed = 0;
     int bytelen = strlen((char*)raw_bytes);
     /* not sure why this is necessary */
@@ -201,6 +207,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
     (*packets) = calloc(1, sizeof(struct packet));
     (*packets)->beacon = 1;
     (*packets)->variety = BEACON_MARKER;
+    (*packets)->mtype = mtype;
     (*packets)->final_packet = 1;
     memcpy((*packets)->addr, local_addr, 6);
     memcpy((*packets)->from_addr, local_addr, 6);
@@ -215,6 +222,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
         memcpy(packets[i]->addr, local_addr, 6);
         memcpy(packets[i]->from_addr, local_addr, 6);
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
+        packets[i]->mtype = mtype;
         packets[i]->variety = variety;
         bytes_processed += DATA_BYTES;
     }

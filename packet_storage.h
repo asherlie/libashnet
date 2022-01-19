@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #define BEACON_MARKER 0xdecaf
-#define DATA_BYTES 32-sizeof(int)-4-6
+#define DATA_BYTES 32-sizeof(int)-4-6-1
 #define UNAME_LEN DATA_BYTES-1
 #define PACKET_MEMORY 1000
 
@@ -46,6 +46,7 @@ struct __attribute__((__packed__)) packet{
     /* only need one byte - dlen <= 32 */
     /* original sender address */
     uint8_t from_addr[6];
+    uint8_t mtype;
     uint8_t dlen;
     uint8_t data[DATA_BYTES];
     _Bool beacon;
@@ -87,4 +88,4 @@ void init_packet_storage(struct packet_storage* ps);
 struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN], struct peer** created_peer);
 struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN]);
 char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p, _Bool* valid_packet);
-struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname, int variety);
+struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* uname, int variety, uint8_t mtype);

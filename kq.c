@@ -38,10 +38,10 @@ void set_kq_key(struct queues* q, key_t kq_in, key_t kq_out){
     msgget(q->kq_key_out, 0777 | IPC_CREAT);
 }
 
-_Bool insert_kq(char* msg, key_t kq){
+_Bool insert_kq(char* msg, key_t kq, uint8_t mtype){
     int msgid = msgget(kq, 0777);
     struct msgbuf buf = {0};
-    buf.mtype = 1;
+    buf.mtype = mtype;
     strncpy(buf.mdata, msg, KQ_MAX);
 
     /* TODO: don't use strnlen() here, insert_kq() should
@@ -50,7 +50,7 @@ _Bool insert_kq(char* msg, key_t kq){
     return !msgsnd(msgid, &buf, strnlen(buf.mdata, KQ_MAX), 0);
 }
 
-uint8_t* pop_kq(key_t kq){
+uint8_t* pop_kq(key_t kq, uint8_t* mtype){
     int msgid = msgget(kq, 0777), br;
     struct msgbuf buf = {0};
     uint8_t* ret;
@@ -59,6 +59,7 @@ uint8_t* pop_kq(key_t kq){
     ret = malloc(br);
     memcpy(ret, buf.mdata, br);
     ret[br] = 0;
+    if(mtype)*mtype = buf.mtype;
 
     return ret;
 }

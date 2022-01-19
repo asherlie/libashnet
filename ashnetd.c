@@ -24,6 +24,12 @@ note:
     we can keep print statements, they just end up being shown in systemctl status
     BUT they should be helpful
     they should only be "ADDED UNAME _ TO STORAGE" and "RECEIVED MESSAGE _, (PROPOGATING/FOUND TO BE A DUPLICATE)"
+
+    TODO: mtype specification can be used to implement messageboards/semi-private rooms
+
+    most important goals:
+        get ashnetd working on raspberry pi
+        fix first message bug
 #endif
 /*
 ashnetd
@@ -132,7 +138,7 @@ void* broadcast_thread(void* arg){
 
 void* process_kq_msg_thread(void* arg){
     struct queues* q = arg;
-    uint8_t* bytes_to_send;
+    uint8_t mtype, * bytes_to_send;
     char* discard;
     struct packet** pp;
     int batch_num = 0;
@@ -142,7 +148,7 @@ void* process_kq_msg_thread(void* arg){
          * prep_packets()?
          * with pop_kq()?
          */
-        bytes_to_send = pop_kq(q->kq_key_in);
+        bytes_to_send = pop_kq(q->kq_key_in, &mtype);
         /*
          * we now need to split this string into celing(strlen()/(32-sizeof(int)))
          * separate packets and add them to the ready_to_send mq
@@ -162,7 +168,7 @@ void* process_kq_msg_thread(void* arg){
          * this can be revisited, but for now duplicate detection is mostly meant
          * to simply be a base case to stop propogation 
          */
-        pp = prep_packets(bytes_to_send, q->local_addr, q->uname, batch_num++);
+        pp = prep_packets(bytes_to_send, q->local_addr, q->uname, batch_num++, mtype);
         /* all sent packets are added to packet storage to be checked
          * against as a duplicate
          */
@@ -234,9 +240,13 @@ void* builder_thread(void* arg){
             insert_uname(&q->ps, p->from_addr, (char*)p->data);
         }
         if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
+            /* TODO: there's a chance p could have been free()d by now
+             * if there's enough packet volume and old packets have to
+             * be freed. rethink this section
+             */
             construct_msg(constructed_msg, built_msg, p, &q->ps);
             free(built_msg);
-            insert_kq(constructed_msg, q->kq_key_out);
+            insert_kq(constructed_msg, q->kq_key_out, p->mtype);
         }
         /* if this is not a duplicate packet and is valid,
          * it's time to propogate the message by adding it
