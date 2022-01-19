@@ -24,6 +24,7 @@ start: systemd_service
 	systemctl daemon-reload
 	systemctl stop ashnetd
 	systemctl start ashnetd
+	systemctl enable ashnetd
 
 .PHONY:
 clean:

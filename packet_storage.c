@@ -101,6 +101,10 @@ struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname
 }
 
 _Bool is_duplicate(struct peer* peer, struct packet* p){
+    /* this will always be zero due to calloc() call in prep_packets()
+     * just being safe in case of future changes
+     */
+    _Bool built_backup = p->built;
     for(int i = 0; i < peer->n_stored_packets; ++i){
         /* this occurs when the buffer isn't completely
          * full and there are no duplicates
@@ -108,9 +112,10 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
         if(!peer->recent_packets[i]){
             return 0;
         }
-        /* need to check fields independently due to built byte 
-         * varying based on build_message() progress
-         */
+        p->built = peer->recent_packets[i]->built;
+        /* no need to reset built byte, packet will be discared if duplicate */
+        if(!memcmp(peer->recent_packets[i], p, sizeof(struct packet)))return 1;
+        #if 0
         if(!memcmp(peer->addr, p->from_addr, 6) &&
            !memcmp(peer->recent_packets[i]->data, p->data, DATA_BYTES) &&
            /* this check is redundant, already checking peer->addr */
@@ -118,7 +123,9 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
            peer->recent_packets[i]->beacon == p->beacon &&
            peer->recent_packets[i]->final_packet == p->final_packet &&
            peer->recent_packets[i]->variety == p->variety)return 1;
+           #endif
     }
+    p->built = built_backup;
     return 0;
 }
 
