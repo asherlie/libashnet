@@ -114,7 +114,62 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
         }
         p->built = peer->recent_packets[i]->built;
         /* no need to reset built byte, packet will be discared if duplicate */
-        if(!memcmp(peer->recent_packets[i], p, sizeof(struct packet)))return 1;
+        /*
+         * it might be wise to compare sizeof(struct packet)-6 bytes
+         * because if a packet isn't received by one peer maybe we can fill
+         * in the gap with another
+         * pretty sure p->addr will differ based on who passed us the message
+        */
+        #if 0
+        hmm this does not seem to make a difference for some reason, p->addr
+        does not change when i think it is being passed along from rpi
+        CHECK to be sure
+        going to do a test where i overwrite part of the message when razzpi
+        gets its hands on the packet
+        this will let me know if it is being passed or sent directly
+
+        does broadcast_packte() overwrite with current address? IT SHOULD!
+        wow, it does not. it just takes the addr directly from p->addr
+
+        this is bad behavior, it should always use local address for the fields in the packet
+        that is about to be sent
+        from_addr is the only field relevant to libashnet and it will be intact in the ssid portion
+
+        razzpi is propogating messages, as demonstrated when propogated rpi packets
+        are marked before arrival
+        BUT this is occuring without p->addr being accurate before broadcast_packet() calls
+        so on some platforms, this might be acceptable BUT if i fix this it may work on mac os
+        good to know that propogation is working!
+
+        UPDATE:
+            ashnet is FINALLY cross platform.
+
+            the diff that got it working is working_mac_os.diff
+
+            the changes all pretty much boil down to:
+                p->addr being updated
+
+            AND
+                just making sure that all networks are manually
+                disconnected from before starting ashnetd
+                and monitor mode
+
+        there are some quirks to iron out - for example, propogated
+        messages are showing up as non-duplicates
+
+        i.e, message sent from ashpad, msg recvd and propogated from
+        mbp, msg recvd as new on ashpad
+
+        this could easily be due to endianness of variety bytes
+            nvm - it cannot be this because variety bytes are set only from prep_packets()
+            on original machine
+
+        wait this is actually likely just because p->addr is differing, this should not be checked
+        in is_duplicate
+
+        #endif
+
+        if(!memcmp(peer->recent_packets[i], p, sizeof(struct packet)-6))return 1;
         #if 0
         if(!memcmp(peer->addr, p->from_addr, 6) &&
            !memcmp(peer->recent_packets[i]->data, p->data, DATA_BYTES) &&
@@ -209,7 +264,6 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
     (*packets)->variety = BEACON_MARKER;
     (*packets)->mtype = mtype;
     (*packets)->final_packet = 1;
-    memcpy((*packets)->addr, local_addr, 6);
     memcpy((*packets)->from_addr, local_addr, 6);
     memcpy((*packets)->data, uname, strlen(uname));
     
@@ -219,7 +273,6 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
          * and in beacon packets
          * this can occur only once on startup in ashnetd.c:init_queues
          */
-        memcpy(packets[i]->addr, local_addr, 6);
         memcpy(packets[i]->from_addr, local_addr, 6);
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
         packets[i]->mtype = mtype;

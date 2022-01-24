@@ -29,7 +29,9 @@ note:
 
     most important goals:
         get ashnetd working on raspberry pi
-        fix first message bug
+        clean up code - make it look nice, ESPECIALLY rf.c
+        /*fix first message bug*/ - this has been ~somewhat~ solved - it is a sysv_ipc python issue
+        a problem with the client kq interface. this code is working perfectly to send bytes from kq
 #endif
 /*
 ashnetd
@@ -127,6 +129,7 @@ void* broadcast_thread(void* arg){
          * transmitted for each broadcast_packet() call
          * TODO: i believe i fixed this, look into it
          */
+        memcpy(((struct packet*)e->data)->addr, q->local_addr, 6);
         broadcast_packet(q->pcp, e->data, e->len);
         /* e->data should not be freed, this memory is
          * managed in packet storage and is still in
@@ -206,10 +209,10 @@ int construct_msg(char* buf, char* built_msg, struct packet* p, struct packet_st
     struct peer* user = lookup_peer(ps, p->from_addr, NULL, NULL);
 
     memset(buf, 0, 1000);
-    return snprintf(buf, 1000, "%hx:%hx:%hx:%hx:%hx:%hx,%s,%s", 
+    return snprintf(buf, 1000, "%hx:%hx:%hx:%hx:%hx:%hx,%s,%s by way of %hx:%hx", 
                     p->from_addr[0], p->from_addr[1], p->from_addr[2],
                     p->from_addr[3], p->from_addr[4], p->from_addr[5],
-                    user->uname, built_msg);
+                    user->uname, built_msg, p->addr[0], p->addr[5]);
 }
 
 void* builder_thread(void* arg){
