@@ -1,6 +1,6 @@
 CC=gcc
 prefix=/usr/local/bin
-CFLAGS= -Wall -Wextra -Wpedantic -Werror -g3 -pthread -lpcap
+CFLAGS= -Wall -Wextra -Wpedantic -Werror -Wshadow -Wformat=2 -fno-common -g3 -pthread -lpcap 
 
 all: ashnetd
 
