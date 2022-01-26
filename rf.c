@@ -17,7 +17,6 @@
 #include <net/if.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
-#include <stdatomic.h>
 
 #include <linux/if_packet.h>
 
@@ -159,7 +158,7 @@ struct packet* recv_packet(pcap_t* pcp, int* len){
     (void)ieb;
     /*printf("%li == %i\n", sizeof(struct rtap_hdr), rhdr->it_len);*/
     /*struct ethhdr* ehdr = (struct ethhdr*)raw_data+sizeof(struct rtap_hdr);*/
-    memcpy(pkt, raw_data+rhdr->it_len+38, MIN(hdr.len-(rhdr->it_len+38), sizeof(struct packet)-6));
+    memcpy(pkt, raw_data+rhdr->it_len+38, MIN(hdr.len-(rhdr->it_len+38), BASE_PACKET_LEN));
     memcpy(pkt->addr, raw_data+rhdr->it_len+16, 6);
     /*printf("proto %i\n", (ehdr->h_proto));*/
     /*printf("vers %i, %i\n", rhdr->it_version, (rhdr->it_present));*/
@@ -298,7 +297,7 @@ uint8_t* gen_packet(struct packet* p, int* packet_len){
     /*eh->beacon.capab_info = 0x11 0x11*/
     eh->beacon.capab_info = 0x1111;
     eh->beacon.alignment_padding = 0x20;
-    memcpy(&eh->beacon.ssid, p, sizeof(struct packet)-6);
+    memcpy(&eh->beacon.ssid, p, BASE_PACKET_LEN);
     /*memcpy(eh+sizeof(struct ethhdr), p, sizeof(struct packet)-6);*/
     
     return packet;
@@ -375,7 +374,7 @@ _Bool broadcast_exp(pcap_t* pcp, struct packet* p){
     // DATA STARTS AT 56
     // TWO ADDRESS FIELDS START AT 28
 
-    memcpy(raw_packet_recvd_zeroed+56, p, sizeof(struct packet)-6);
+    memcpy(raw_packet_recvd_zeroed+56, p, BASE_PACKET_LEN);
     memcpy(raw_packet_recvd_zeroed+28, p->addr, 6);
     memcpy(raw_packet_recvd_zeroed+28+6, p->addr, 6);
 
@@ -424,17 +423,18 @@ _Bool broadcast_packet(pcap_t* pcp, struct packet* p, int len){
     int hdrsz;
     FILE* fp = fopen("spoofed_header", "r");
     fread(&hdrsz, sizeof(int), 1, fp);
-    pkt = calloc(1, sizeof(struct packet)+hdrsz-6);
+    pkt = calloc(1, BASE_PACKET_LEN+hdrsz);
     fread(pkt, hdrsz, 1, fp);
     fclose(fp);
-    memcpy(pkt+hdrsz, p, sizeof(struct packet)-6);
+    memcpy(pkt+hdrsz, p, BASE_PACKET_LEN);
     (void)pcp;
     /*pcap_inject(pcp, pkt, sizeof(struct packet)+hdrsz) == (int)sizeof(struct packet)+hdrsz;*/
-    pcap_inject(pcp, pkt, sizeof(struct packet)+hdrsz);
+    /*pcap_inject(pcp, pkt, sizeof(struct packet)+hdrsz);*/
+    pcap_inject(pcp, pkt, BASE_PACKET_LEN+hdrsz);
     /*char* dev_name;*/
     char errbuf[1000];
     pcap_t* handle = pcap_open_live("wlp3s0", BUFSIZ, 0, 3000, errbuf);
-    return pcap_inject(handle, pkt, sizeof(struct packet)+hdrsz-6) == (int)sizeof(struct packet)+hdrsz-6;
+    return pcap_inject(handle, pkt, BASE_PACKET_LEN+hdrsz) == (int)BASE_PACKET_LEN+hdrsz;
     /*return pcap_inject(pcp, p, len) == len;*/
 }
 

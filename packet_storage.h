@@ -1,10 +1,14 @@
 #pragma once
 
+#include <stdatomic.h>
 #include <stdint.h>
 
 #define BEACON_MARKER 0xdecaf
-#define DATA_BYTES 32-sizeof(int)-4-6-1
+#define BASE_PACKET_LEN 32
+#define DATA_BYTES BASE_PACKET_LEN-sizeof(int)-4-6-1
+#define PADDING_BYTES sizeof(struct packet)-BASE_PACKET_LEN
 #define UNAME_LEN DATA_BYTES-1
+
 #define PACKET_MEMORY 1000
 
 /*
@@ -56,6 +60,23 @@ struct __attribute__((__packed__)) packet{
     /* first 32 over */
     /* immediate sender address */
     uint8_t addr[6];
+    /* there are two opportunities for packets to be free()d
+     * the first is when insert_packet() is overwriting an existing
+     * packet to make room, the second is when a packet is popped from
+     * an mq and is being broadcasted
+     *
+     * when one has occurred, the next free() oportunity will trigger
+     * a free(). only when both have occurred is it safe to free up mem
+     *
+     * free_opportunities defaults to 0, as packets are always calloc()d
+     *
+     * all packets are sent exactly once and will be overwritten exactly once
+     * the only exception is duplicates, which are free()d on the spot and are
+     * irrelevant. packets crafted from kq are added to both storage and ready_to_send
+     *
+     * packets received are added to storage and propogated unless they're duplicates
+     */
+    _Atomic int free_opportunities;
     //struct compact_packet cp_internal;
 };
 

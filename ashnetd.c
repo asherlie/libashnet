@@ -55,6 +55,7 @@ TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
 TODO: free all memory
 TODO: exit safely
 */
+#include <stdatomic.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -131,10 +132,11 @@ void* broadcast_thread(void* arg){
          */
         memcpy(((struct packet*)e->data)->addr, q->local_addr, 6);
         broadcast_packet(q->pcp, e->data, e->len);
-        /* e->data should not be freed, this memory is
-         * managed in packet storage and is still in
-         * use to check for duplicates
+        /* if packet has been overwritten in storage and sent out, it's okay to
+         * free up its memory as it's guaranteed not to be used anymore
          */
+        if(atomic_fetch_add(&((struct packet*)e->data)->free_opportunities, 1))
+            free(e->data);
         free(e);
     }
 }
@@ -187,6 +189,11 @@ void* process_kq_msg_thread(void* arg){
              * will overwrite that upon insertion
              * the most consistent solution is to just free built messages
              */
+
+            /* it's safe to insert_mq() after insert_packet() because both are guaranteed
+             * not to free packets until the other has given up control - this is done
+             * using the _Atomic int free_opportunities
+             */
             if((discard = insert_packet(&q->ps, (*ppi)->from_addr, *ppi, NULL)))free(discard);
             insert_mq(&q->ready_to_send, *ppi, DATA_BYTES);
         }
@@ -209,10 +216,9 @@ int construct_msg(char* buf, char* built_msg, struct packet* p, struct packet_st
     struct peer* user = lookup_peer(ps, p->from_addr, NULL, NULL);
 
     memset(buf, 0, 1000);
-    return snprintf(buf, 1000, "%hx:%hx:%hx:%hx:%hx:%hx,%s,%s by way of %hx:%hx", 
-                    p->from_addr[0], p->from_addr[1], p->from_addr[2],
-                    p->from_addr[3], p->from_addr[4], p->from_addr[5],
-                    user->uname, built_msg, p->addr[0], p->addr[5]);
+    return snprintf(buf, 1000, "%hx:%hx:%hx:%hx:%hx:%hx,%s,%s",
+                    p->from_addr[0], p->from_addr[1], p->from_addr[2], p->from_addr[3],
+                    p->from_addr[4], p->from_addr[5], user->uname, built_msg);
 }
 
 void* builder_thread(void* arg){
@@ -224,18 +230,9 @@ void* builder_thread(void* arg){
     struct packet* p;
 
     while(1){
-        /* TODO: i need to free pop_mq() return val */
         mqe = pop_mq(&q->build_fragments);
         p = mqe->data;
         free(mqe);
-        /* TODO: i likely need a better way of determining if packets
-         * are beacons - something like two identical header fields
-         * and a /uname string
-         * WAIT we can just use the beacon bool and set variety int
-         * to a unique value that only holds true for beacons
-         * as well as setting a unique arrangement of values for
-         * the other boolean flags
-         */
         /* TODO: this order of operations allows all beacons to
          * pass through, even if they're duplicates
          */
@@ -243,9 +240,11 @@ void* builder_thread(void* arg){
             insert_uname(&q->ps, p->from_addr, (char*)p->data);
         }
         if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
-            /* TODO: there's a chance p could have been free()d by now
-             * if there's enough packet volume and old packets have to
-             * be freed. rethink this section
+            /* just like in process_kq_msg_thread(), it's now guaranteed that
+             * p will not be freed after the above call to insert_packet()
+             * this ensures that the subsequent construct_msg(), insert_kq(),
+             * and insert_mq() calls will not seg fault even in case of very
+             * high packet load where the packet storage buffer is overwhelmed
              */
             construct_msg(constructed_msg, built_msg, p, &q->ps);
             free(built_msg);
@@ -255,9 +254,8 @@ void* builder_thread(void* arg){
          * it's time to propogate the message by adding it
          * to our ready to send queue
          */
-        if(valid_packet){
+        if(valid_packet)
             insert_mq(&q->ready_to_send, p, DATA_BYTES);
-        }
         else free(p);
     }
 }

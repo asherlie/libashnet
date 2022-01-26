@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
@@ -115,7 +116,7 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
         p->built = peer->recent_packets[i]->built;
         /* no need to reset built byte, packet will be discared if duplicate */
         /*
-         * it might be wise to compare sizeof(struct packet)-6 bytes
+         * it might be wise to compare BASE_PACKET_LEN bytes
          * because if a packet isn't received by one peer maybe we can fill
          * in the gap with another
          * pretty sure p->addr will differ based on who passed us the message
@@ -169,7 +170,7 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
 
         #endif
 
-        if(!memcmp(peer->recent_packets[i], p, sizeof(struct packet)-6))return 1;
+        if(!memcmp(peer->recent_packets[i], p, BASE_PACKET_LEN))return 1;
         #if 0
         if(!memcmp(peer->addr, p->from_addr, 6) &&
            !memcmp(peer->recent_packets[i]->data, p->data, DATA_BYTES) &&
@@ -238,8 +239,9 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
     if(peer->ins_idx == peer->n_stored_packets)
         peer->ins_idx = 0;
     if(peer->recent_packets[peer->ins_idx]){
-        /* if non-NULL, free */
-        free(peer->recent_packets[peer->ins_idx]);
+        /* if non-NULL and packet has already been broadcasted, free */
+        if(atomic_fetch_add(&peer->recent_packets[peer->ins_idx]->free_opportunities, 1))
+            free(peer->recent_packets[peer->ins_idx]);
     }
     peer->recent_packets[peer->ins_idx++] = p;
     if(!p->beacon && p->final_packet)ret = build_message(peer);
