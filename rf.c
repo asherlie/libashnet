@@ -258,7 +258,7 @@ void write_bytes_old_fashioned(void* buf, int len){
     /*printf("somehow: %i\n", saddr.sll_ifindex);*/
     saddr.sll_halen = ETH_ALEN;
 
-    printf("old fashun %li/%i\n", sendto(sock, buf, len, 0, (struct sockaddr*)&saddr, sizeof(struct sockaddr_ll)), len);
+    printf("old fashun %i/%i\n", (int)sendto(sock, buf, len, 0, (struct sockaddr*)&saddr, sizeof(struct sockaddr_ll)), len);
     printf("sock num %i\n", sock);
     close(sock);
 }
