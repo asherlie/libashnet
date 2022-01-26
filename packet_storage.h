@@ -76,7 +76,10 @@ struct __attribute__((__packed__)) packet{
      *
      * packets received are added to storage and propogated unless they're duplicates
      */
-    _Atomic int free_opportunities;
+    /* it's more convenient for free_opportunities to be 1byte wide because of alignment
+     * issues with atomic operations on packed structs
+     */
+    _Atomic uint8_t free_opportunities;
     //struct compact_packet cp_internal;
 };
 
