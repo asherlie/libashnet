@@ -5,6 +5,7 @@
 
 #define BEACON_MARKER 0xdecaf
 #define BASE_PACKET_LEN 32
+/* TODO: don't hardcode offset */
 #define DATA_BYTES BASE_PACKET_LEN-sizeof(int)-4-6-1
 #define PADDING_BYTES sizeof(struct packet)-BASE_PACKET_LEN
 #define UNAME_LEN DATA_BYTES-1
@@ -36,12 +37,6 @@
  * };
 */
 
-/*
-TODO: i might need to include a src_addr field that takes up more of our data
-      bytes - pcap_inject(3) manual states: "source link-layer address, if the
-      header contains such an address, might be changed to be the address
-      assigned to the interface on which the packet it sent"
-*/
 struct __attribute__((__packed__)) packet{
     /* the below fits in 32 bytes for now, just to be safe
      * this may be able to change once i see how i can work

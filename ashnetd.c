@@ -1,34 +1,17 @@
 #if 0
 note:
-    i need to daemonize and allow clients to safely exit the daemon
-    LOOK INTO SYSTEMD-IZING IT
-
     should daemon be with systemd?
     or should i fork() and build in functionality to ashnetd
     ashnetd -d for daemon
     ashnetd -k to kill running daemons?
     this might be necessary when porting over ashnetd for mac os/windows
+    although systemd seems to be working great for now
 
     look through all TODOs, implement relevant ones
-
-    MEMORY GROWS OVER TIME, AS SHOWN BY systemctl status
-    WHY?
-    are unames being added before verification?
-    lack of free()d mem?
-
-    it is likely just packet storage being used, after a while this storage should
-    be static - once it is at capacity
-
-    MORE is being used than it should be though. discarded packets MUST be taking up space
-
-    we can keep print statements, they just end up being shown in systemctl status
-    BUT they should be helpful
-    they should only be "ADDED UNAME _ TO STORAGE" and "RECEIVED MESSAGE _, (PROPOGATING/FOUND TO BE A DUPLICATE)"
 
     TODO: mtype specification can be used to implement messageboards/semi-private rooms
 
     most important goals:
-        get ashnetd working on raspberry pi
         clean up code - make it look nice, ESPECIALLY rf.c
         /*fix first message bug*/ - this has been ~somewhat~ solved - it is a sysv_ipc python issue
         a problem with the client kq interface. this code is working perfectly to send bytes from kq
@@ -36,19 +19,6 @@ note:
 /*
 ashnetd
 
-this code should ~just work~ once broadcast_packet() and recv_packet() are implemented
-
-TODO: i might need to include a src_addr field that takes up more of our data
-      bytes - pcap_inject(3) manual states: "source link-layer address, if the
-      header contains such an address, might be changed to be the address
-      assigned to the interface on which the packet it sent"
-      MIGHT also have more luck with setting bssid field as true from_addr
-
-TODO: solutions for setting uname and programmatically figuring out address
-TODO: i can just use the strategy used in the original ashnet implementation
-      to find local_addr, user will have to specify wifi interface so we can
-      just use that
-TODO: user should be able to specify kq keys
 TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
       meaningful data - this will make ashnetd more reliable
 
@@ -256,6 +226,7 @@ void* builder_thread(void* arg){
          */
         if(valid_packet)
             insert_mq(&q->ready_to_send, p, DATA_BYTES);
+        /* if packet is from unknown address or is duplicate, free mem */
         else free(p);
     }
 }

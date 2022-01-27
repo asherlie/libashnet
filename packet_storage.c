@@ -39,14 +39,6 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
         /* the data after NUL bytes are sometimes diff
          * TODO: confirm that this has been fixed
          */
-        #if 0
-        if(uname){
-            for(long unsigned int i = 0; i < UNAME_LEN; ++i){
-                printf("%li ('%c' '%c')\n", i,ret->uname[i], uname[i]);
-                /*fflush(stdout);*/
-            }
-        }
-        #endif
         
         /*
          * if uname && addr, we shouldn't narrow based on uname ONLY addr
@@ -114,72 +106,8 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
             return 0;
         }
         p->built = peer->recent_packets[i]->built;
-        /* no need to reset built byte, packet will be discared if duplicate */
-        /*
-         * it might be wise to compare BASE_PACKET_LEN bytes
-         * because if a packet isn't received by one peer maybe we can fill
-         * in the gap with another
-         * pretty sure p->addr will differ based on who passed us the message
-        */
-        #if 0
-        hmm this does not seem to make a difference for some reason, p->addr
-        does not change when i think it is being passed along from rpi
-        CHECK to be sure
-        going to do a test where i overwrite part of the message when razzpi
-        gets its hands on the packet
-        this will let me know if it is being passed or sent directly
-
-        does broadcast_packte() overwrite with current address? IT SHOULD!
-        wow, it does not. it just takes the addr directly from p->addr
-
-        this is bad behavior, it should always use local address for the fields in the packet
-        that is about to be sent
-        from_addr is the only field relevant to libashnet and it will be intact in the ssid portion
-
-        razzpi is propogating messages, as demonstrated when propogated rpi packets
-        are marked before arrival
-        BUT this is occuring without p->addr being accurate before broadcast_packet() calls
-        so on some platforms, this might be acceptable BUT if i fix this it may work on mac os
-        good to know that propogation is working!
-
-        UPDATE:
-            ashnet is FINALLY cross platform.
-
-            the diff that got it working is working_mac_os.diff
-
-            the changes all pretty much boil down to:
-                p->addr being updated
-
-            AND
-                just making sure that all networks are manually
-                disconnected from before starting ashnetd
-                and monitor mode
-
-        there are some quirks to iron out - for example, propogated
-        messages are showing up as non-duplicates
-
-        i.e, message sent from ashpad, msg recvd and propogated from
-        mbp, msg recvd as new on ashpad
-
-        this could easily be due to endianness of variety bytes
-            nvm - it cannot be this because variety bytes are set only from prep_packets()
-            on original machine
-
-        wait this is actually likely just because p->addr is differing, this should not be checked
-        in is_duplicate
-
-        #endif
-
+        /* no need to reset built byte, packet will be discarded if duplicate */
         if(!memcmp(peer->recent_packets[i], p, BASE_PACKET_LEN))return 1;
-        #if 0
-        if(!memcmp(peer->addr, p->from_addr, 6) &&
-           !memcmp(peer->recent_packets[i]->data, p->data, DATA_BYTES) &&
-           /* this check is redundant, already checking peer->addr */
-           !memcmp(peer->recent_packets[i]->from_addr, p->from_addr, 6) &&
-           peer->recent_packets[i]->beacon == p->beacon &&
-           peer->recent_packets[i]->final_packet == p->final_packet &&
-           peer->recent_packets[i]->variety == p->variety)return 1;
-        #endif
     }
     p->built = built_backup;
     return 0;
@@ -213,13 +141,10 @@ char* build_message(struct peer* peer){
     return ret;
 }
 
-/* returns a complete message if one has been completed */
-/*
- * should provide info on duplicate status, peer doesn't exist
- * ACTUALLY we may not need to distinguish
- * can just set an invalid boolean flag
- * if invalid, free mem, don't propogate, ignore
-*/
+/* returns a complete message if one has been completed, sets valid_packet
+ * to 0 if packet is a duplicate, from an unrecognized mac address, or
+ * not part of ashnet
+ */
 char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p, _Bool* valid_packet){
     struct peer* peer = lookup_peer(ps, addr, NULL, NULL);
     char* ret = NULL;
@@ -271,10 +196,6 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
     
     for(int i = 1; i < n_packets+1; ++i){
         packets[i] = calloc(1, sizeof(struct packet));
-        /* local_addr must be found programmatically, both here
-         * and in beacon packets
-         * this can occur only once on startup in ashnetd.c:init_queues
-         */
         memcpy(packets[i]->from_addr, local_addr, 6);
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
         packets[i]->mtype = mtype;
