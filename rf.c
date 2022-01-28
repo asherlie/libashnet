@@ -20,14 +20,6 @@
 
 #include <linux/if_packet.h>
 
-    uint8_t rpz[92+4] =
-    "\x00\x00\x12\x00\x2e\x48\x00\x00\x10\x02\x6c\x09\xa0\x00\xe5\x03" \
-    "\x00\x00\x80\x00\x00\x00\xff\xff\xff\xff\xff\xff\x74\xe5\x0b\xb5" \
-    "\x5b\x08\x74\xe5\x0b\xb5\x5b\x08\x00\x00\x00\x00\x00\x00\x00\x00" \
-    "\x00\x00\x64\x00\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x00\x00" \
-    "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
-    "\x00\x00\x00\x00\x00\x00\x00\x00\x5f\x19\x36\xe3\x00\x00\x00\x00";
-
 struct ieee80211_hdr {
 	__le16 frame_control;
 	__le16 duration_id;
@@ -233,126 +225,10 @@ struct packet* recv_packet(pcap_t* pcp, int* len){
     return pkt;
 }
 
-void write_bytes_old_fashioned(void* buf, int len){
-    int sock = socket(AF_PACKET, SOCK_RAW, 0);
-    struct ifreq ifr = {0};
-    struct ifreq if_mac = {0};
-    unsigned char macaddr[6];
-
-    strncpy(ifr.ifr_name, "wlp3s0", IFNAMSIZ-1);
-    strncpy(if_mac.ifr_name, "wlp3s0", IFNAMSIZ-1);
-
-    if(ioctl(sock, SIOCGIFINDEX, &ifr) == -1)perror("IOCTL");
-    if(ioctl(sock, SIOCGIFHWADDR, &if_mac) < 0)perror("HWADDR");
-    memcpy(macaddr, if_mac.ifr_addr.sa_data, 6);
-
-    for(int i = 0; i < 6; ++i){
-        printf("%hx:", macaddr[i]);
-    }
-    puts("");
-
-    if(setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, (void*)&ifr, sizeof(ifr)) < 0)perror("setsockopt");
-
-    struct sockaddr_ll saddr;
-    saddr.sll_ifindex = ifr.ifr_ifindex;
-    /*printf("somehow: %i\n", saddr.sll_ifindex);*/
-    saddr.sll_halen = ETH_ALEN;
-
-    printf("old fashun %i/%i\n", (int)sendto(sock, buf, len, 0, (struct sockaddr*)&saddr, sizeof(struct sockaddr_ll)), len);
-    printf("sock num %i\n", sock);
-    close(sock);
-}
-
-uint8_t* gen_packet(struct packet* p, int* packet_len){
-    /*struct ethhdr* eth = calloc(sizeof(struct rtap_hdr) +*/
-    uint8_t* packet = calloc((*packet_len =
-                             sizeof(struct rtap_hdr) +
-                             sizeof(struct ieee80211_beacon))
-                             /*sizeof(struct ethhdr) +*/
-                             /*sizeof(struct packet)-6), 1);*/
-                             , 1);
-    struct rtap_hdr* rth = (struct rtap_hdr*)packet;
-    /*struct ethhdr* eh = (struct ethhdr*)(packet+sizeof(struct rtap_hdr));*/
-    struct ieee80211_beacon* eh = (struct ieee80211_beacon*)(packet+sizeof(struct rtap_hdr));
-
-    /* just copying over some bytes to try out */
-    /*printf("siz %li\n", MIN(sizeof(rpz), *packet_len));*/
-    memcpy(packet, rpz, MIN(sizeof(rpz), *packet_len));
-    rth->it_version = 0;
-    rth->it_len = htons(sizeof(struct rtap_hdr));
-    /*rth->it_len = sizeof(struct rtap_hdr);*/
-    rth->it_present = htons(11848);
-
-    eh->fc_subtype = 0x08;
-    eh->fc_order = 0;
-    eh->duration = 0;
-    for(int i = 0; i < 6; ++i)eh->da[i] = 0xff;
-    /*eh->h_proto = htons(8);*/
-    memcpy(eh->sa, p->addr, 6);
-    memcpy(eh->bssid, p->addr, 6);
-    /*eh->seq_ctrl = ??*/
-    eh->beacon.timestamp = htons(time(NULL));
-    /**eh->beacon.beacon_int = figure out how to set this to 0x64 in first byte */
-    eh->beacon.beacon_int = htons(0x64);
-    /*eh->beacon.capab_info = 0x11 0x11*/
-    eh->beacon.capab_info = 0x1111;
-    eh->beacon.alignment_padding = 0x20;
-    memcpy(&eh->beacon.ssid, p, BASE_PACKET_LEN);
-    /*memcpy(eh+sizeof(struct ethhdr), p, sizeof(struct packet)-6);*/
-    
-    return packet;
-}
-
-/* TODO: can we reuse our pcap_t? */
-#if !!0
-my weird strategy for now is to just copy a received packet
-i will take its radiotap header and everything up until ssid field
-just need to overwrite source address field - this is at rtap.length + 10 -- VERIFY THIS
-#endif
-_Bool broadcast_exp(pcap_t* pcp, struct packet* p){
-    int peepee;
-    uint8_t* new_method_packet = gen_packet(p, &peepee);
-
-    (void)new_method_packet;
-    //these should work but don't
-    /*
-     * write_bytes_old_fashioned(new_method_packet, peepee);
-     * return 1;
-    */
-    /*return pcap_inject(pcp, new_method_packet, peepee) == peepee;*/
-
-    // the method below is functional BUT doesn't work on non-x220s
-    #if 0
-    this is a raw scapy packet
-    "\x00\x00\x38\x00\x6f\x08\x00\xc0\x01\x00\x00\x40\x74\xe5\x0b\xb5" \
-    "\xf8\x89\x14\x00\x00\x00\x00\x00\x10\x02\x6c\x09\x80\x04\xd7\xa9" \
-    "\x00\x20\x00\x10\x18\x00\x03\x00\x02\x00\x00\x78\x00\x10\x18\x03" \
-    "\x06\x00\x78\x78\x50\x02\xf4\xb3\x80\x00\x00\x00\xff\xff\xff\xff" \
-    "\xff\xff\x74\xe5\x0b\xb5\x5b\x08\x74\xe5\x0b\xb5\x5b\x08\x00\x00" \
-    "\x00\x00\x00\x00\x00\x00\x00\x00\x64\x00\x00\x00\x00\x20\x78\x78" \
-    "\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78" \
-    "\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x5f\x19" \
-    "\x36\xe3"
-    #endif
-
-    uint8_t raw_packet[126] =
-    "\x00\x00\x38\x00\x6f\x08\x00\xc0\x01\x00\x00\x40\x74\xe5\x0b\xb5" \
-    "\xf8\x89\x14\x00\x00\x00\x00\x00\x10\x02\x6c\x09\x80\x04\xd7\xa9" \
-    "\x00\x20\x00\x10\x18\x00\x03\x00\x02\x00\x00\x78\x00\x10\x18\x03" \
-    "\x06\x00\x78\x78\x50\x02\xf4\xb3\x80\x00\x00\x00\xff\xff\xff\xff" \
-    "\xff\xff\x74\xe5\x0b\xb5\x5b\x08\x74\xe5\x0b\xb5\x5b\x08\x00\x00" \
-    "\x00\x00\x00\x00\x00\x00\x00\x00\x64\x00\x00\x00\x00\x20\x00\x00" \
-    "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
-    "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-
-    uint8_t raw_packet_recvd[92] =
-    "\x00\x00\x12\x00\x2e\x48\x00\x00\x10\x02\x6c\x09\xa0\x00\xe5\x03" \
-    "\x00\x00\x80\x00\x00\x00\xff\xff\xff\xff\xff\xff\x74\xe5\x0b\xb5" \
-    "\x5b\x08\x74\xe5\x0b\xb5\x5b\x08\x00\x00\x00\x00\x00\x00\x00\x00" \
-    "\x00\x00\x64\x00\x00\x00\x00\x20\x78\x78\x78\x78\x78\x78\x78\x78" \
-    "\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78\x78" \
-    "\x78\x78\x78\x78\x78\x78\x78\x78\x5f\x19\x36\xe3";
-
+/* for now pcap_inject()ing a captured packet that has ssid field and address
+ * fields overwritten
+ */
+_Bool broadcast_packet(pcap_t* pcp, struct packet* p){
     /* final four bytes are added although they'll be overwritten by
      * syscalls - works with them for some reason
      * added four bytes to test extra padding
@@ -364,79 +240,22 @@ _Bool broadcast_exp(pcap_t* pcp, struct packet* p){
     "\x00\x00\x64\x00\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x00\x00" \
     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
     "\x00\x00\x00\x00\x00\x00\x00\x00\x5f\x19\x36\xe3\x00\x00\x00\x00";
-    #if 0
-    /*56 and 57 i THINK*/
-    printf("56 %hx %hx\n", raw_packet_recvd_zeroed[55], raw_packet_recvd_zeroed[56]);
-    /*29 should be 74\*/
-    printf("28 should be 74: %hx\n", raw_packet_recvd_zeroed[28]);
-    printf("28+6 should be 74: %hx\n", raw_packet_recvd_zeroed[28+6]);
-    #endif
-    // DATA STARTS AT 56
-    // TWO ADDRESS FIELDS START AT 28
 
+    /* "data" aka ssid field starts at byte 56, two consecute mac addr fields
+     * begin at offset 28
+     */
     memcpy(raw_packet_recvd_zeroed+56, p, BASE_PACKET_LEN);
     memcpy(raw_packet_recvd_zeroed+28, p->addr, 6);
     memcpy(raw_packet_recvd_zeroed+28+6, p->addr, 6);
 
-    
-    /* either of these options work - should i go with
-     * libpcap for now?
+    /* if i want to move away from libpcap, i can use the deprecated gen_packet()
+     * or something similar to generate bytes for a raw socket
+     * this can be sent using the deprecated write_bytes_old    
+     * look back in commit history - they were removed on january 28, 2022
      */
-    /*write_bytes_old_fashioned(raw_packet_recvd_zeroed, sizeof(raw_packet_recvd_zeroed));*/
-    pcap_inject(pcp, raw_packet_recvd_zeroed, sizeof(raw_packet_recvd_zeroed));
-    return 1;
-
-    char errbuf[1212];
-    return pcap_inject(pcp, raw_packet_recvd_zeroed, sizeof(raw_packet_recvd_zeroed)) == sizeof(raw_packet_recvd_zeroed);
-    /*pcap_inject(pcap_open_live("wlp3s0", BUFSIZ, 0, 3000, errbuf), raw_packet_recvd_zeroed, sizeof(raw_packet_recvd_zeroed));*/
-    printf("lelnnf %i\n", (int)sizeof raw_packet_recvd);
-
-    memcpy(raw_packet+66, p->addr, 6);
-    memcpy(raw_packet+72, p->addr, 6);
-    memcpy(raw_packet+94, p, 32);
-    write_bytes_old_fashioned(raw_packet, sizeof(raw_packet));
-    return 1;
-    printf("lenny: %i\n", (int)sizeof(raw_packet));
-    /*printf("%hx %hx\n", raw_packet[93], raw_packet[94]);*/
-    return pcap_inject(pcp, raw_packet, sizeof(raw_packet)) == sizeof(raw_packet);
-    (void)pcp;
-    return pcap_inject(pcap_open_live("wlp3s0", BUFSIZ, 0, 3000, errbuf), raw_packet, sizeof(raw_packet)) == sizeof(raw_packet);
-    
+    return pcap_inject(pcp, raw_packet_recvd_zeroed, sizeof(raw_packet_recvd_zeroed)) != PCAP_ERROR;
 }
 
-
-_Bool broadcast_packet(pcap_t* pcp, struct packet* p, int len){
-    /* hmm, this was working for a bit but isn't anymore */
-    /*
-     * literally was working just sending raw bytes for p and header was
-     * magically appearing, WHAT'S GOING ON NOW
-    */
-    /*
-     * write_bytes_old_fashioned(p, len);
-     * return 1;
-    */
-
-    return broadcast_exp(pcp, p);
-
-    (void)len;
-    uint8_t* pkt;
-    int hdrsz;
-    FILE* fp = fopen("spoofed_header", "r");
-    fread(&hdrsz, sizeof(int), 1, fp);
-    pkt = calloc(1, BASE_PACKET_LEN+hdrsz);
-    fread(pkt, hdrsz, 1, fp);
-    fclose(fp);
-    memcpy(pkt+hdrsz, p, BASE_PACKET_LEN);
-    (void)pcp;
-    /*pcap_inject(pcp, pkt, sizeof(struct packet)+hdrsz) == (int)sizeof(struct packet)+hdrsz;*/
-    /*pcap_inject(pcp, pkt, sizeof(struct packet)+hdrsz);*/
-    pcap_inject(pcp, pkt, BASE_PACKET_LEN+hdrsz);
-    /*char* dev_name;*/
-    char errbuf[1000];
-    pcap_t* handle = pcap_open_live("wlp3s0", BUFSIZ, 0, 3000, errbuf);
-    return pcap_inject(handle, pkt, BASE_PACKET_LEN+hdrsz) == (int)BASE_PACKET_LEN+hdrsz;
-    /*return pcap_inject(pcp, p, len) == len;*/
-}
 
 void get_local_addr(char* iname, uint8_t addr[6]){
     int sock = socket(AF_PACKET, SOCK_RAW, 0);

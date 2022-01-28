@@ -101,7 +101,7 @@ void* broadcast_thread(void* arg){
          * TODO: i believe i fixed this, look into it
          */
         memcpy(((struct packet*)e->data)->addr, q->local_addr, 6);
-        broadcast_packet(q->pcp, e->data, e->len);
+        broadcast_packet(q->pcp, e->data);
         /* if packet has been overwritten in storage and sent out, it's okay to
          * free up its memory as it's guaranteed not to be used anymore
          */
