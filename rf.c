@@ -5,20 +5,13 @@
 #include <ctype.h>
 #include <time.h>
 
-#include "packet_storage.h"
-
 // temp includes
-#include <sys/socket.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <string.h>
 #include <netinet/if_ether.h>
 #include <net/if.h>
-#include <stdlib.h>
-#include <arpa/inet.h>
 
-#include <linux/if_packet.h>
+#include "packet_storage.h"
 
 struct ieee80211_hdr {
 	__le16 frame_control;
