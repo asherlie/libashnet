@@ -1,12 +1,10 @@
 #include <pcap.h>
 #include <string.h>
-#include <sys/param.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
-
-// temp includes
 #include <unistd.h>
+#include <sys/param.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 
