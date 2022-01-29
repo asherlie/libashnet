@@ -8,34 +8,35 @@
 // temp includes
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <netinet/if_ether.h>
 #include <net/if.h>
 
 #include "packet_storage.h"
 
+#define MAC_ADDR_LEN 6
+
 struct ieee80211_hdr {
-	__le16 frame_control;
-	__le16 duration_id;
-	uint8_t addr1[ETH_ALEN];
-	uint8_t addr2[ETH_ALEN];
-	uint8_t addr3[ETH_ALEN];
-	__le16 seq_ctrl;
-	uint8_t addr4[ETH_ALEN];
+	uint16_t frame_control;
+	uint16_t duration_id;
+	uint8_t addr1[MAC_ADDR_LEN];
+	uint8_t addr2[MAC_ADDR_LEN];
+	uint8_t addr3[MAC_ADDR_LEN];
+	uint16_t seq_ctrl;
+	uint8_t addr4[MAC_ADDR_LEN];
 } __attribute__ ((__packed__));
 
 struct ieee80211_beacon {
     uint8_t fc_subtype;
     uint8_t fc_order;
-	/*__le16 frame_control;*/
-	__le16 duration;
-	uint8_t da[ETH_ALEN];
-	uint8_t sa[ETH_ALEN];
-	uint8_t bssid[ETH_ALEN];
-	__le16 seq_ctrl;
+	/*uint16_t frame_control;*/
+	uint16_t duration;
+	uint8_t da[MAC_ADDR_LEN];
+	uint8_t sa[MAC_ADDR_LEN];
+	uint8_t bssid[MAC_ADDR_LEN];
+	uint16_t seq_ctrl;
 		struct {
-			__le64 timestamp;
-			__le16 beacon_int;
-			__le16 capab_info;
+			uint64_t timestamp;
+			uint16_t beacon_int;
+			uint16_t capab_info;
             uint8_t alignment_padding;
 			/* followed by some of SSID, Supported rates,
 			 * FH Params, DS Params, CF Params, IBSS Params, TIM */
