@@ -12,36 +12,6 @@
 
 #define MAC_ADDR_LEN 6
 
-struct ieee80211_hdr {
-	uint16_t frame_control;
-	uint16_t duration_id;
-	uint8_t addr1[MAC_ADDR_LEN];
-	uint8_t addr2[MAC_ADDR_LEN];
-	uint8_t addr3[MAC_ADDR_LEN];
-	uint16_t seq_ctrl;
-	uint8_t addr4[MAC_ADDR_LEN];
-} __attribute__ ((__packed__));
-
-struct ieee80211_beacon {
-    uint8_t fc_subtype;
-    uint8_t fc_order;
-	/*uint16_t frame_control;*/
-	uint16_t duration;
-	uint8_t da[MAC_ADDR_LEN];
-	uint8_t sa[MAC_ADDR_LEN];
-	uint8_t bssid[MAC_ADDR_LEN];
-	uint16_t seq_ctrl;
-		struct {
-			uint64_t timestamp;
-			uint16_t beacon_int;
-			uint16_t capab_info;
-            uint8_t alignment_padding;
-			/* followed by some of SSID, Supported rates,
-			 * FH Params, DS Params, CF Params, IBSS Params, TIM */
-			uint8_t ssid[32];
-		} __attribute__ ((__packed__)) beacon;
-} __attribute__ ((__packed__));
-
 struct rtap_hdr{
     uint8_t it_version;
     uint8_t it_pad;
@@ -114,106 +84,9 @@ struct packet* recv_packet(pcap_t* pcp, int* len){
     *len = hdr.len;
 
     rhdr = (struct rtap_hdr*)raw_data;
-    /*struct ethhdr* ehdr = (struct ethhdr*)raw_data+rhdr->it_len;*/
-    struct ieee80211_beacon* ieb = (struct ieee80211_beacon*)(raw_data+rhdr->it_len); 
-    /*ieb = (struct ieee80211_beacon*)raw_data+rhdr-;*/
-    /*
-     * for(int i = 0; i < 32; ++i){
-     *     printf("ssid: rtap offset: %i %i \"%s\"\n", rhdr->it_len, i, ieb->beacon.ssid+i);
-     * }
-    */
-    #if 0
-    printf("ssid: rtap offset: %i \"%s\"\n", rhdr->it_len, ieb->beacon.ssid);
-
-    printf("%hx:%hx:%hx:%hx:%hx:%hx\n", ieb->da[0], ieb->da[1], ieb->da[2], ieb->da[3], ieb->da[4], ieb->da[5]);
-    /*for(int i = 0; i < rhdr->it_len-6; ++i){*/
-    for(int i = 0; i < (int)hdr.len-6; ++i){
-        _Bool sixes = 1;
-        for(int j = 0; j < 6; ++j){
-            if(raw_data[i+j] != 0xff){
-                /*printf("found a zero at %i\n", j+i);*/
-                sixes = 0;
-                break;
-            }
-        }
-        if(sixes)printf("found sixes @ %i, %i\n", rhdr->it_len, i);
-    }
-    #endif
-    (void)ieb;
-    /*printf("%li == %i\n", sizeof(struct rtap_hdr), rhdr->it_len);*/
-    /*struct ethhdr* ehdr = (struct ethhdr*)raw_data+sizeof(struct rtap_hdr);*/
     memcpy(pkt, raw_data+rhdr->it_len+38, MIN(hdr.len-(rhdr->it_len+38), BASE_PACKET_LEN));
     memcpy(pkt->addr, raw_data+rhdr->it_len+16, 6);
-    /*printf("proto %i\n", (ehdr->h_proto));*/
-    /*printf("vers %i, %i\n", rhdr->it_version, (rhdr->it_present));*/
 
-    #if 0
-    for(int i = 0; i < (int)hdr.len; ++i){
-        if(i % 8 == 0)puts("");
-        if(isalnum(raw_data[i]))printf("%i/%.4i/%c ", rhdr->it_len, i, raw_data[i]);
-        else printf("         ");
-    }
-    #else
-    /*
-     * for(char* i = (char*)raw_data+rhdr->it_len+38; *i; ++i){
-     *     if(!isalnum(*i)){
-     *         *i = 0;
-     *         break;
-     *     }
-     * }
-    */
-    /*
-     * if(raw_data[rhdr->it_len+38] != 'o' && 
-     *    raw_data[rhdr->it_len+38] != 'n' && 
-     *    raw_data[rhdr->it_len+38] != 'G' && 
-     *    raw_data[rhdr->it_len+38] != 'M' && 
-     *    raw_data[rhdr->it_len+38] != '$')
-    */
-    /*printf("got packet with data: \"%s\"\n", raw_data+rhdr->it_len+38);*/
-
-    /*printf("got packet with data: \"%s\"\n", pkt->data);*/
-    #endif
-    /*memcpy(pkt->data, raw_data+rhdr->it_len+38, );*/
-    #if !1
-    /*
-     * puts((char*)pkt->data);
-     * for(int i = 0; i < 6; ++i){
-     *     printf("%.2hx:", pkt->addr[i]);
-     * }
-     * puts("");
-    */
-    for(int i = 0; i < (int)hdr.len-4; ++i){
-        /*if(raw_data[i] == 0x74 && raw_data[i+1] == 0xe5 && raw_data[i+2] == 0x0b && raw_data[i+3] == 0xb5){*/
-        if(raw_data[i] == 'x' && raw_data[i+1] == 'x' && raw_data[i+2] == 'x' && raw_data[i+3] == 'x'){
-        /*if(raw_data[i] == 'a' && raw_data[i+1] == 's' && raw_data[i+2] == 'h' && raw_data[i+3] == 'e'){*/
-        /*if(raw_data[i] == 'n' && raw_data[i+1] == 'e' && raw_data[i+2] == 'w' && raw_data[i+3] == ' '){*/
-            for(int i = 0; i < (int)hdr.len; ++i){
-                if(i % 8 == 0)printf(" ");
-                if(i % 16 == 0)puts("");
-                if(isalnum(raw_data[i]))printf(" %c ", raw_data[i]);
-                else printf("%.2hx ", raw_data[i]);
-                /*printf("%");*/
-            }
-            puts("\n");
-        }
-    }
-    /*#if !1*/
-    if(strstr((char*)pkt->data, "xxxx") || (
-       pkt->addr[0] == 0xc9 && pkt->addr[1] == 0xf4 && pkt->addr[2] == 0x11 && pkt->addr[3] == 0x84 &&
-       pkt->addr[4] == 0x0e && pkt->addr[5] == 0xa2)){
-        uint8_t dummy[1000] = {0};
-        /* copy until just before ssid */
-        memcpy(dummy, raw_data, rhdr->it_len+38);
-        FILE* fp = fopen("spoofed_header", "w");
-        int tmpi = rhdr->it_len + 38;
-        dummy[tmpi-1] = 32;
-        /*fwrite(&tmpi, sizeof(int), 1, fp);*/
-        /*fwrite(dummy, rhdr->it_len+38, 1, fp);*/
-        fwrite(raw_data, hdr.len, 1, fp);
-        fclose(fp);
-        exit(0);
-    }
-    #endif
     return pkt;
 }
 
