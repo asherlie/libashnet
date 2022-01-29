@@ -5,4 +5,4 @@
 pcap_t* internal_pcap_init(char* iface);
 struct packet* recv_packet(pcap_t* pcp, int* len);
 _Bool broadcast_packet(pcap_t* pcp, struct packet* p);
-void get_local_addr(char* iname, uint8_t addr[6]);
+_Bool get_local_addr(char* iname, uint8_t addr[6]);

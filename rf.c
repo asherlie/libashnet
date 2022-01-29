@@ -8,6 +8,21 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 
+#ifdef __APPLE__
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/sysctl.h>
+#include <net/if.h>
+#include <net/if_dl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#endif
+
 #include "packet_storage.h"
 
 #define MAC_ADDR_LEN 6
@@ -122,7 +137,28 @@ _Bool broadcast_packet(pcap_t* pcp, struct packet* p){
 }
 
 
-void get_local_addr(char* iname, uint8_t addr[6]){
+#ifdef __APPLE__
+_Bool get_local_addr(char* iname, uint8_t addr[6]){
+    struct if_msghdr* mhdr;
+    struct sockaddr_dl* saddr;
+    size_t len;
+    int mib[6] = {CTL_NET, AF_ROUTE, 0, AF_LINK, NET_RT_IFLIST, 0};
+
+    if(!(mib[5] = if_nametoindex(iname)))return 0;
+    if(sysctl(mib, 6, NULL, &len, NULL, 0) < 0)return 0;
+
+    mhdr = malloc(len);
+    if(sysctl(mib, 6, mhdr, &len, NULL, 0) < 0){
+        free(mhdr);
+        return 0;
+    }
+
+    saddr = (struct sockaddr_dl*)(mhdr+1);
+    memcpy(addr, LLADDR(saddr), 6);
+    return 1;
+}
+#else
+_Bool get_local_addr(char* iname, uint8_t addr[6]){
     int sock = socket(AF_PACKET, SOCK_RAW, 0);
     struct ifreq ifr = {0};
     struct ifreq if_mac = {0};
@@ -132,4 +168,6 @@ void get_local_addr(char* iname, uint8_t addr[6]){
     if(ioctl(sock, SIOCGIFHWADDR, &if_mac) < 0)perror("HWADDR");
     memcpy(addr, if_mac.ifr_addr.sa_data, 6);
     close(sock);
+    return 1;
 }
+#endif
