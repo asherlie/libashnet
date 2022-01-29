@@ -137,8 +137,8 @@ _Bool broadcast_packet(pcap_t* pcp, struct packet* p){
 }
 
 
-#ifdef __APPLE__
 _Bool get_local_addr(char* iname, uint8_t addr[6]){
+#ifdef __APPLE__
     struct if_msghdr* mhdr;
     struct sockaddr_dl* saddr;
     size_t len;
@@ -155,10 +155,10 @@ _Bool get_local_addr(char* iname, uint8_t addr[6]){
 
     saddr = (struct sockaddr_dl*)(mhdr+1);
     memcpy(addr, LLADDR(saddr), 6);
+    free(mhdr);
     return 1;
 }
 #else
-_Bool get_local_addr(char* iname, uint8_t addr[6]){
     int sock = socket(AF_PACKET, SOCK_RAW, 0);
     struct ifreq ifr = {0};
     struct ifreq if_mac = {0};
