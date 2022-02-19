@@ -6,7 +6,7 @@
 #define BEACON_MARKER 0xdecaf
 #define BASE_PACKET_LEN 32
 /* TODO: don't hardcode offset */
-#define DATA_BYTES BASE_PACKET_LEN-sizeof(int)-4-6-1
+#define DATA_BYTES BASE_PACKET_LEN-sizeof(int)-4-6-1-2
 #define PADDING_BYTES sizeof(struct packet)-BASE_PACKET_LEN
 #define UNAME_LEN DATA_BYTES-1
 
@@ -51,7 +51,8 @@ struct __attribute__((__packed__)) packet{
     _Bool beacon;
     _Bool built;
     _Bool final_packet;
-    int variety;
+    uint16_t sanity;
+    uint32_t variety;
     /* first 32 over */
     /* immediate sender address */
     uint8_t addr[6];
@@ -102,6 +103,9 @@ struct packet_storage{
     /* (0xff * 6) + 1 */
     struct peer* buckets[1531];
 };
+
+int compute_sanity_check(struct packet* p);
+_Bool sanity_check(struct packet* p);
 
 void init_packet_storage(struct packet_storage* ps);
 struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN], struct peer** created_peer);

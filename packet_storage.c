@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/param.h>
+#include <arpa/inet.h>
 #include <stdint.h>
 
 #include "packet_storage.h"
@@ -14,6 +15,22 @@ int sum_addr(uint8_t addr[6]){
         ret += addr[i];
     }
     return ret;
+}
+
+int compute_sanity_check(struct packet* p){
+    uint16_t sum = 0;
+    int db = (int)DATA_BYTES;
+    for(int i = 0; i < db; ++i){
+        sum += (i*p->data[i]);
+    }
+    return sum;
+}
+
+_Bool sanity_check(struct packet* p){
+    /* sanity short is always stored in network order
+     * after being recvd
+     */
+    return compute_sanity_check(p) == ntohs(p->sanity);
 }
 
 void init_packet_storage(struct packet_storage* ps){
@@ -155,7 +172,12 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
         return NULL;
     }
     pthread_mutex_lock(&ps->ps_lock);
-    if(is_duplicate(peer, p)){
+    /* TODO: do we really need to check sanity? i believe the problems occuring
+     * were due to dropped packets, not malformed ones
+     * because they were mostly resolved with an increase in pcap buffer size
+     * might as well keep this for now, but look into this in the future
+     */
+    if(!sanity_check(p) || is_duplicate(peer, p)){
         pthread_mutex_unlock(&ps->ps_lock);
         if(valid_packet)*valid_packet = 0;
         return NULL;
@@ -188,11 +210,31 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
     /* setting up beacon */
     (*packets) = calloc(1, sizeof(struct packet));
     (*packets)->beacon = 1;
-    (*packets)->variety = BEACON_MARKER;
+    /* endianness doesn't usually matter for
+     * variety int32, but BEACON_MARKER must
+     * be consistent across platforms
+     */
+    (*packets)->variety = htonl(BEACON_MARKER);
     (*packets)->mtype = mtype;
     (*packets)->final_packet = 1;
     memcpy((*packets)->from_addr, local_addr, 6);
     memcpy((*packets)->data, uname, strlen(uname));
+    /* although it's a bit more elegant to just compute
+     * and set this value immediately before broadcasting
+     * in broadcast_packet(), this makes more sense
+     * because it allows us to insert_packet() for
+     * packets being sent locally
+     *
+     * if we wait until broadcast_packet() to compute
+     * and set, propogated packets will appear as new
+     * because they will not be added to our storage
+     * after being deemed invalid - this would
+     * cause many issues
+     * TODO: decide which method to use
+     * this could also be solved by not doing validity
+     * checks at all when *valid_packet is not set
+     */
+    (*packets)->sanity = htons(compute_sanity_check(*packets));
     
     for(int i = 1; i < n_packets+1; ++i){
         packets[i] = calloc(1, sizeof(struct packet));
@@ -200,6 +242,7 @@ struct packet** prep_packets(uint8_t* raw_bytes, uint8_t local_addr[6], char* un
         memcpy(packets[i]->data, raw_bytes+bytes_processed, MIN(DATA_BYTES, bytelen-bytes_processed));
         packets[i]->mtype = mtype;
         packets[i]->variety = variety;
+        packets[i]->sanity = htons(compute_sanity_check(packets[i]));
         bytes_processed += DATA_BYTES;
     }
     /* n_packets-1 isn't the last index due to initial beacon */

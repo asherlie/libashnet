@@ -62,6 +62,12 @@ pcap_t* internal_pcap_init(char* iface){
         return NULL;
     }
 
+    /* ~10x the default to ensure no dropped packets */
+    if(pcap_set_buffer_size(pcap_data, 10000000)){
+        puts("pcap_set_buffer_size() failed");
+        return NULL;
+    }
+
     if(pcap_activate(pcap_data) < 0){
         puts("pcap_activate() failed");
         return NULL;
@@ -107,8 +113,16 @@ struct packet* recv_packet(pcap_t* pcp, int* len){
 
 /* for now pcap_inject()ing a captured packet that has ssid field and address
  * fields overwritten
+ * sends n_attempts packets, returns if at least one has been
+ * succesfully sent
+ * it's safe to assume all packets will be sent without error
+ * the reason we send duplicates is to reduce the chance of
+ * dropped packets on the receiving side
+ * TODO: is this still necessary with increased pcap buffer size?
  */
 _Bool broadcast_packet(pcap_t* pcp, struct packet* p){
+    _Bool ret = 1;
+    const int n_attempts = 2;
     /* final four bytes are added although they'll be overwritten by
      * syscalls - works with them for some reason
      * added four bytes to test extra padding
@@ -133,7 +147,11 @@ _Bool broadcast_packet(pcap_t* pcp, struct packet* p){
      * this can be sent using the deprecated write_bytes_old    
      * look back in commit history - they were removed on january 28, 2022
      */
-    return pcap_inject(pcp, raw_packet_recvd_zeroed, sizeof(raw_packet_recvd_zeroed)) != PCAP_ERROR;
+    for(int i = 0; i < n_attempts; ++i){
+        ret |= (pcap_inject(pcp, raw_packet_recvd_zeroed, sizeof(raw_packet_recvd_zeroed)) != PCAP_ERROR);
+    }
+
+    return ret;
 }
 
 

@@ -191,6 +191,18 @@ int construct_msg(char* buf, char* built_msg, struct packet* p, struct packet_st
                     p->from_addr[4], p->from_addr[5], user->uname, built_msg);
 }
 
+/*
+ * not only does each packet have to have all
+ * the correct bytes, which i now think is
+ * pretty much a non issue, but the order
+ * has to be correct, AND we can't miss a single packet
+ * especially not the final byte packet
+ *
+ * the problem i was trying to fix by introducing crc
+ * has been solved with increased buffer size for pcap
+ *
+ * TODO: should i remove sanity checks for packets?
+*/
 void* builder_thread(void* arg){
     struct queues* q = arg;
     struct mq_entry* mqe;
@@ -205,8 +217,10 @@ void* builder_thread(void* arg){
         free(mqe);
         /* TODO: this order of operations allows all beacons to
          * pass through, even if they're duplicates
+         * TODO: beacon checking and insert_uname() should both be
+         * done inside insert_packet() AFTER validity checking/dupe checking
          */
-        if(p->beacon && p->variety == BEACON_MARKER){
+        if(p->beacon && ntohl(p->variety) == BEACON_MARKER){
             insert_uname(&q->ps, p->from_addr, (char*)p->data);
         }
         if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
