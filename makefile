@@ -14,7 +14,6 @@ ashnetd: ashnetd.c kq.o mq.o packet_storage.o rf.o
 .PHONY:
 install: ashnetd
 	install -m 0755 ashnetd $(prefix)
-	install -m 0755 ashnetd.sh $(prefix)
 
 .PHONY:
 systemd_service: install
