@@ -32,4 +32,4 @@ clean:
 
 .PHONY:
 run: ashnetd
-	sudo ./ashnetd -ki 857123030 -ko 857123040 -u ASHER -i wlp3s0
+	sudo ./ashnetd -ki 5 -ko 10 -u ASHER -i wlp3s0
