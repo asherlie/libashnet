@@ -87,7 +87,11 @@ struct peer{
     uint8_t addr[6];
 
     struct packet** recent_packets;
-    /* ins idx is wrapped back to 0 when full */
+    /* ins idx is wrapped back to 1 when full,
+     * idx 0 is reserved for beacon packets
+     * because we only store one at a time
+     * and it's beneficial to know where to look
+     */
     int n_stored_packets, ins_idx;
 
     struct peer* next;

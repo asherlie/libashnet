@@ -49,7 +49,6 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
     struct peer* ret = ps->buckets[idx], * last = NULL;
     _Bool found = 0;
     if(!uname && !addr)return NULL;
-    pthread_mutex_lock(&ps->ps_lock);
     for(; ret; ret = ret->next){
         if(!ret->next)last = ret;
         if((addr && memcmp(ret->addr, addr, 6)))continue;
@@ -76,10 +75,7 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
         break;
     }
 
-    if(found){
-        pthread_mutex_unlock(&ps->ps_lock);
-        return ret;
-    }
+    if(found)return ret;
 
     if(created_peer && uname && addr){
         if(last){
@@ -90,18 +86,15 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
         memcpy(last->addr, addr, 6);
         memcpy(last->uname, uname, UNAME_LEN);
         last->n_stored_packets = PACKET_MEMORY;
-        last->ins_idx = 0;
+        last->ins_idx = 1;
         last->recent_packets = calloc(sizeof(struct packet*), last->n_stored_packets);
         last->next = NULL;
         *created_peer = last;
     }
 
-    pthread_mutex_unlock(&ps->ps_lock);
-
     return ret;
 }
 
-/* TODO: args 1 and 2 can be consolidated */
 /* returns whether an entirely new entry has been created */
 struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN]){
     struct peer* peer;
@@ -115,6 +108,10 @@ _Bool is_duplicate(struct peer* peer, struct packet* p){
      * just being safe in case of future changes
      */
     _Bool built_backup = p->built;
+
+    /* peer may be NULL in case of beacons being inserted */
+    if(!peer)return 0;
+
     for(int i = 0; i < peer->n_stored_packets; ++i){
         /* this occurs when the buffer isn't completely
          * full and there are no duplicates
@@ -162,36 +159,68 @@ char* build_message(struct peer* peer){
  * to 0 if packet is a duplicate, from an unrecognized mac address, or
  * not part of ashnet
  */
+/*
+ * only store most recent beacon,
+ * makes sense to do this at index 0
+ * so we always know where to look/overwrite
+*/
+
+/* TODO: args 2 and 3 can be consolidated */
 char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p, _Bool* valid_packet){
-    struct peer* peer = lookup_peer(ps, addr, NULL, NULL);
+    struct peer* peer, * tmp_peer;
     char* ret = NULL;
+    _Bool beacon = p->beacon && ntohl(p->variety) == BEACON_MARKER;
+
     if(valid_packet)*valid_packet = 1;
 
-    if(!peer){
-        if(valid_packet)*valid_packet = 0;
-        return NULL;
-    }
     pthread_mutex_lock(&ps->ps_lock);
+
+    peer = lookup_peer(ps, addr, NULL, NULL);
     /* TODO: do we really need to check sanity? i believe the problems occuring
      * were due to dropped packets, not malformed ones
-     * because they were mostly resolved with an increase in pcap buffer size
+     * because they were resolved with an increase in pcap buffer size
      * might as well keep this for now, but look into this in the future
      */
-    if(!sanity_check(p) || is_duplicate(peer, p)){
+
+    /* if this isn't a beacon packet and peer isn't found, packet doesn't pass sanity check,
+     * OR packet is a duplicate, we can ignore
+     */
+    if((!beacon && !peer) || !sanity_check(p) || is_duplicate(peer, p)){
         pthread_mutex_unlock(&ps->ps_lock);
         if(valid_packet)*valid_packet = 0;
         return NULL;
     }
-    p->built = 0;
-    if(peer->ins_idx == peer->n_stored_packets)
-        peer->ins_idx = 0;
-    if(peer->recent_packets[peer->ins_idx]){
-        /* if non-NULL and packet has already been broadcasted, free */
-        if(atomic_fetch_add(&peer->recent_packets[peer->ins_idx]->free_opportunities, 1))
-            free(peer->recent_packets[peer->ins_idx]);
+
+    if(beacon){
+        /* insert_uname() is guaranteed not to return NULL if peer does not exist*/
+        tmp_peer = insert_uname(ps, addr, (char*)p->data);
+        /* if !tmp_peer, peer */
+        if(tmp_peer)peer = tmp_peer;
+        /* we only store one beacon at a time to avoid an a->b->a username problem
+         * where setting a uname to what it was previously is always detected as a duplicate
+         * if we ignore all but the most recent beacon, we can ensure that past unames are
+         * ignored as dupes
+         * they're kept at index 0 for simplicity's sake
+         * it makes sense to keep beacons within the bounds of our packet storage
+         * so that is_duplicate() will work unaltered
+         */
+        if(*peer->recent_packets)free(*peer->recent_packets);
+        *peer->recent_packets = p;
     }
-    peer->recent_packets[peer->ins_idx++] = p;
-    if(!p->beacon && p->final_packet)ret = build_message(peer);
+
+    /* if !beacon, add to standard packet storage and build a message if appropriate */
+    else{
+        p->built = 0;
+        if(peer->ins_idx == peer->n_stored_packets)
+            peer->ins_idx = 1;
+        if(peer->recent_packets[peer->ins_idx]){
+            /* if non-NULL and packet has already been broadcasted, free */
+            if(atomic_fetch_add(&peer->recent_packets[peer->ins_idx]->free_opportunities, 1))
+                free(peer->recent_packets[peer->ins_idx]);
+        }
+        peer->recent_packets[peer->ins_idx++] = p;
+        if(p->final_packet)ret = build_message(peer);
+    }
 
     pthread_mutex_unlock(&ps->ps_lock);
 

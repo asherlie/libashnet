@@ -183,7 +183,11 @@ void* recv_packet_thread(void* arg){
 }
 
 int construct_msg(char* buf, char* built_msg, struct packet* p, struct packet_storage* ps){
-    struct peer* user = lookup_peer(ps, p->from_addr, NULL, NULL);
+    struct peer* user;
+
+    pthread_mutex_lock(&ps->ps_lock);
+    user = lookup_peer(ps, p->from_addr, NULL, NULL);
+    pthread_mutex_unlock(&ps->ps_lock);
 
     memset(buf, 0, 1000);
     return snprintf(buf, 1000, "%hx:%hx:%hx:%hx:%hx:%hx,%s,%s",
@@ -220,9 +224,6 @@ void* builder_thread(void* arg){
          * TODO: beacon checking and insert_uname() should both be
          * done inside insert_packet() AFTER validity checking/dupe checking
          */
-        if(p->beacon && ntohl(p->variety) == BEACON_MARKER){
-            insert_uname(&q->ps, p->from_addr, (char*)p->data);
-        }
         if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
             /* just like in process_kq_msg_thread(), it's now guaranteed that
              * p will not be freed after the above call to insert_packet()
