@@ -219,11 +219,6 @@ void* builder_thread(void* arg){
         mqe = pop_mq(&q->build_fragments);
         p = mqe->data;
         free(mqe);
-        /* TODO: this order of operations allows all beacons to
-         * pass through, even if they're duplicates
-         * TODO: beacon checking and insert_uname() should both be
-         * done inside insert_packet() AFTER validity checking/dupe checking
-         */
         if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
             /* just like in process_kq_msg_thread(), it's now guaranteed that
              * p will not be freed after the above call to insert_packet()
@@ -321,7 +316,7 @@ int main(int a, char** b){
         puts("failed to initialize shared data... are you root?");
         return 0;
     }
-    /* TODO: read from stdin */
+
     printf("initialized kernel queues %i, %i\n", q.kq_key_in, q.kq_key_out);
 
     threads[0] = spawn_thread(broadcast_thread, &q);

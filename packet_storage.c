@@ -52,13 +52,8 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
     for(; ret; ret = ret->next){
         if(!ret->next)last = ret;
         if((addr && memcmp(ret->addr, addr, 6)))continue;
-        /* the data after NUL bytes are sometimes diff
-         * TODO: confirm that this has been fixed
-         */
-        
-        /*
-         * if uname && addr, we shouldn't narrow based on uname ONLY addr
-         * addr always trumps because it's 1:1 there are guaranteed no duplicates
+        /* if uname && addr, we shouldn't narrow based on uname ONLY addr
+         * addr always trumps because it's 1:1, there are guaranteed no duplicates
         */
         if(uname){
             if(memcmp(ret->uname, uname, UNAME_LEN)){
@@ -131,7 +126,11 @@ char* build_message(struct peer* peer){
     /* TODO: this is a naive long term approach
      * i need to account for wrap-arounds
      */
-    /* TODO: this should be calculated more precisely */
+    /* TODO: this should be calculated more precisely
+     * this also could cause seg faults in case of a
+     * wraparound packet cluster that ends at a low
+     * index
+     */
     char* ret = calloc(1, peer->ins_idx*DATA_BYTES);
     int ret_idx = 0;
     /* most recent packet is guaranteed to be here, as it
@@ -204,6 +203,7 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
          * it makes sense to keep beacons within the bounds of our packet storage
          * so that is_duplicate() will work unaltered
          */
+
         if(*peer->recent_packets)free(*peer->recent_packets);
         *peer->recent_packets = p;
     }
