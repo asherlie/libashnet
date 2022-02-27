@@ -204,7 +204,9 @@ char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p
          * so that is_duplicate() will work unaltered
          */
 
-        if(*peer->recent_packets)free(*peer->recent_packets);
+        /* similarly to below, if beacon is stored and has already been broadcasted, FREE! */
+        if(*peer->recent_packets && atomic_fetch_add(&(*peer->recent_packets)->free_opportunities, 1))
+            free(*peer->recent_packets);
         *peer->recent_packets = p;
     }
 
