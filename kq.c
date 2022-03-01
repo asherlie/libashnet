@@ -56,7 +56,7 @@ uint8_t* pop_kq(key_t kq, uint8_t* mtype){
     uint8_t* ret;
 
     br = msgrcv(msgid, &buf, KQ_MAX, 0, 0);
-    ret = malloc(br);
+    ret = malloc(br+1);
     memcpy(ret, buf.mdata, br);
     ret[br] = 0;
     if(mtype)*mtype = buf.mtype;
