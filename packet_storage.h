@@ -112,6 +112,7 @@ int compute_sanity_check(struct packet* p);
 _Bool sanity_check(struct packet* p);
 
 void init_packet_storage(struct packet_storage* ps);
+void free_packet_storage(struct packet_storage* ps);
 struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN], struct peer** created_peer);
 struct peer* insert_uname(struct packet_storage* ps, uint8_t addr[6], char uname[UNAME_LEN]);
 char* insert_packet(struct packet_storage* ps, uint8_t addr[6], struct packet* p, _Bool* valid_packet);

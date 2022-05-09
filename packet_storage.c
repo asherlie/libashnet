@@ -35,7 +35,36 @@ _Bool sanity_check(struct packet* p){
 
 void init_packet_storage(struct packet_storage* ps){
     pthread_mutex_init(&ps->ps_lock, NULL);
+    /*ps->exit = 0;*/
     memset(ps->buckets, 0, sizeof(struct peer*)*1531);
+}
+
+/*
+ * broadcast, builder, and process_kq_msg_thread should be exited
+ * by the time this is called
+ * to ensure no thread attempts to free this
+ * this can just be done after all joins are done
+ * TODO: valgrind, any mem issues?
+*/
+void free_packet_storage(struct packet_storage* ps){
+    struct peer* prev_p;
+
+    pthread_mutex_lock(&ps->ps_lock);
+    for(int i = 0; i < 1531; ++i){
+        prev_p = NULL;
+        for(struct peer* p = ps->buckets[i]; p; p = p->next){
+            if(prev_p)free(prev_p);
+            prev_p = p;
+            for(int pkt_idx = 0; pkt_idx < p->n_stored_packets; ++pkt_idx){
+                if(p->recent_packets[pkt_idx])free(p->recent_packets[pkt_idx]);
+            }
+            free(p->recent_packets);
+        }
+        /* prev_p could be NULL if a bucket has no entries */
+        if(prev_p)free(prev_p);
+    }
+    pthread_mutex_unlock(&ps->ps_lock);
+    pthread_mutex_destroy(&ps->ps_lock);
 }
 
 /*
