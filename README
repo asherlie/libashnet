@@ -1,0 +1,51 @@
+ashnetd is a daemon that provides a simple interface for sending and receiving bytes without internet
+
+*-------*
+|[USAGE]|
+*-------*
+ashnetd is interacted with solely through the use of system v message queues, which are built into the
+kernels of linux/bsd/mac os/other similar unixy operating systems
+
+to send bytes using ashnetd, all the programmer needs to do is write to a sys v queue
+to receive bytes using ashnetd, all the programmer needs to do is read from a sys v queue
+
+incoming messages are provided to the user in the following format:
+    "mac:_:a:d:d:r,username,message of arbitrary length"
+
+this is a very convenient interface to use for custom networking software beause the use of a kernel 
+data structure allows for ashnetd usage to be as portable as any interface can be - sys v queues
+can be accessed using any language - I've written both a barebones python implementation of a chat 
+client, as well as a more full featured ncurses client written in c as examples of how easy to use
+ashnetd is
+
+the leveraging of sys v queues also provides thread safety without any special consideration from the
+programmer
+
+the mtype field associated with a sys v queue entry is maintained and can be used by the programmer as
+they wish
+
+ashnet is invoked with 4 flags -ki <integer> -ko <integer>, -u <string> and -i <string>
+    -ki and -ko are the sys v queue identifiers for the incoming and outgoing queues. if none are 
+    provided, random identifiers are created.
+        any bytes added to the outgoing queue are eventually broadcasted as an ashnet packet
+        all received bytes are inserted into the incoming queue
+
+    -u specifies the desired username of the local ashnetd process.
+
+    -i specifies the wifi interface to use for ashnetd sending and receiving
+
+
+ashnet is typically started using a systemd service file - an example service file is included
+
+*--------------*
+|[KNOWN ISSUES]|
+*--------------*
+packets have the potential of showing up incomplete or not showing up at all due to the limitation 
+of 32 bytes per sub-packet. each ashnetd process groups messages from specific mac addresses together 
+until a final message is encountered. if the final message of a cluster is not picked up then the packet 
+will not be built and inserted into the kernel queue until another final message is received. this may lead 
+to a long packet that is made up of two or more chains of incomplete separate packets. internal sub-
+packets being dropped is less catastrophic, but leads to packets with missing content.
+
+ashnetd will not work if the wifi interface being used for it is not in monitor mode- not exactly a bug, but 
+a hardware limitation
