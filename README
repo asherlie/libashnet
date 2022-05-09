@@ -10,9 +10,9 @@ to send bytes using ashnetd, all the programmer needs to do is write to a sys v 
 to receive bytes using ashnetd, all the programmer needs to do is read from a sys v queue
 
 incoming messages are provided to the user in the following format:
-    "mac:_:a:d:d:r,username,message of arbitrary length"
+    "MAC:_:A:D:D:R,USERNAME,MESSAGE OF ARBITRARY LENGTH"
 
-this is a very convenient interface to use for custom networking software beause the use of a kernel 
+this is a very convenient interface to use for custom networking software because the use of a kernel 
 data structure allows for ashnetd usage to be as portable as any interface can be - sys v queues
 can be accessed using any language - I've written both a barebones python implementation of a chat 
 client, as well as a more full featured ncurses client written in c as examples of how easy to use
