@@ -17,15 +17,13 @@ note:
         a problem with the client kq interface. this code is working perfectly to send bytes from kq
 #endif
 /*
-ashnetd
+TODO: check for mem issues with valgrind while receiving actual ashnet messages
 
 TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
       meaningful data - this will make ashnetd more reliable
-
-TODO: free all memory
-TODO: exit safely
 */
 #include <stdatomic.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -39,6 +37,7 @@ TODO: exit safely
 #include "rf.h"
 
 _Bool init_queues(struct queues* q, key_t k_in, key_t k_out, char* uname, char* iface){
+    q->exit = 0;
     init_mq(&q->ready_to_send);
     init_mq(&q->build_fragments);
     set_kq_key(q, k_in, k_out);
@@ -50,6 +49,15 @@ _Bool init_queues(struct queues* q, key_t k_in, key_t k_out, char* uname, char* 
     insert_uname(&q->ps, q->local_addr, q->uname);
     if(!(q->pcp = internal_pcap_init(iface)))return 0;
     return 1;
+}
+
+/* TODO: free up mq mem here */
+void free_mem(struct queues* q){
+    free_packet_storage(&q->ps);
+    /* mqs may be nonempty in the event of
+     * a backlog of packets to broadcast or
+     * fragments to generate
+     */
 }
 
 /*
@@ -93,8 +101,17 @@ void broadcast_packet(struct packet* p, int len){
 void* broadcast_thread(void* arg){
     struct queues* q = arg;
     struct mq_entry* e;
-    while(1){
+    /* this thread is sent a NULL entry to initiate an exit
+     * condition check
+     */
+    while(!q->exit){
         e = pop_mq(&q->ready_to_send);
+        /* this should only occur when we're ready to exit,
+         * although even in the event of some kind of corrupted
+         * outgoing kq message we'll be okay because q->exit will
+         * not be set
+         */
+        if(!e->data)goto cleanup;
         /* TODO: find out why duplicates are being
          * sent. ~5 pairs of beacons/data are being
          * transmitted for each broadcast_packet() call
@@ -107,8 +124,10 @@ void* broadcast_thread(void* arg){
          */
         if(atomic_fetch_add(&((struct packet*)e->data)->free_opportunities, 1))
             free(e->data);
+        cleanup:
         free(e);
     }
+    return NULL;
 }
 
 void* process_kq_msg_thread(void* arg){
@@ -123,7 +142,11 @@ void* process_kq_msg_thread(void* arg){
          * prep_packets()?
          * with pop_kq()?
          */
-        bytes_to_send = pop_kq(q->kq_key_in, &mtype);
+        if(!(bytes_to_send = pop_kq(q->kq_key_in, &mtype))){
+            q->exit = 1;
+            insert_mq(&q->ready_to_send, NULL, -1);
+            break;
+        }
         /*
          * we now need to split this string into celing(strlen()/(32-sizeof(int)))
          * separate packets and add them to the ready_to_send mq
@@ -144,6 +167,7 @@ void* process_kq_msg_thread(void* arg){
          * to simply be a base case to stop propogation 
          */
         pp = prep_packets(bytes_to_send, q->local_addr, q->uname, batch_num++, mtype);
+        free(bytes_to_send);
         /* all sent packets are added to packet storage to be checked
          * against as a duplicate
          */
@@ -169,6 +193,7 @@ void* process_kq_msg_thread(void* arg){
         }
         free(pp);
     }
+    return NULL;
 }
 
 void* recv_packet_thread(void* arg){
@@ -176,10 +201,23 @@ void* recv_packet_thread(void* arg){
     struct packet* p;
     int len;
 
-    while(1){
+    /* this may never exit in situations of extreme loneliness
+     * if this occurs you likely have bigger problems than
+     * ashnetd refusing to exit
+     */
+    while(!q->exit){
         p = recv_packet(q->pcp, &len);
         insert_mq(&q->build_fragments, p, len);
     }
+    /* there's a chance that the exit flag has been set after the call
+     * to insert_mq() above but before the next iteration of the loop
+     * this would cause the loop to be broken, but builder_thread to
+     * never get another popped fragment, which would cause ashnetd
+     * to hang on an exit attempt
+     * inserting a NULL entry into build fragment mq to fix this
+     */
+    insert_mq(&q->build_fragments, NULL, -1);
+    return NULL;
 }
 
 int construct_msg(char* buf, char* built_msg, struct packet* p, struct packet_storage* ps){
@@ -215,10 +253,12 @@ void* builder_thread(void* arg){
     _Bool valid_packet;
     struct packet* p;
 
-    while(1){
+    /* we run into the same issue here as we do with * recv_packet_thread() */
+    while(!q->exit){
         mqe = pop_mq(&q->build_fragments);
         p = mqe->data;
         free(mqe);
+        if(!p)continue;
         if((built_msg = insert_packet(&q->ps, p->from_addr, p, &valid_packet))){
             /* just like in process_kq_msg_thread(), it's now guaranteed that
              * p will not be freed after the above call to insert_packet()
@@ -239,6 +279,7 @@ void* builder_thread(void* arg){
         /* if packet is from unknown address or is duplicate, free mem */
         else free(p);
     }
+    return NULL;
 }
 
 pthread_t spawn_thread(void* (*func)(void *), void* arg){
@@ -273,25 +314,19 @@ _Bool parse_args(int a, char** b, char** uname, char** iface, key_t* k_in, key_t
             continue;
         }
         if(*b[i] == '-'){
-            switch(b[i][1]){
-                case 'D':
+            switch(tolower(b[i][1])){
                 case 'd':
                     daemon = 1;
                     break;
-                case 'U':
                 case 'u':
                     set_uname = 1;
                     break;
-                case 'I':
                 case 'i':
                     set_iface = 1;
                     break;
-                case 'K':
                 case 'k':
-                    set_k_in |= b[i][2] == 'I';
-                    set_k_in |= b[i][2] == 'i';
-                    set_k_out |= b[i][2] == 'O';
-                    set_k_out |= b[i][2] == 'o';
+                    set_k_in |= tolower(b[i][2]) == 'i';
+                    set_k_out |= tolower(b[i][2]) == 'o';
                     break;
             }
         }
@@ -324,7 +359,7 @@ int main(int a, char** b){
     threads[2] = spawn_thread(recv_packet_thread, &q);
     threads[3] = spawn_thread(builder_thread, &q);
 
-    for(int i = 0; i < 4; ++i){
+    for(int i = 0; i < 4; ++i)
         pthread_join(threads[i], NULL);
-    }
+    free_mem(&q);
 }

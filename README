@@ -12,6 +12,9 @@ to receive bytes using ashnetd, all the programmer needs to do is read from a sy
 incoming messages are provided to the user in the following format:
     "MAC:_:A:D:D:R,USERNAME,MESSAGE OF ARBITRARY LENGTH"
 
+ashnetd can be shut down safely by inserting a message into the outgoing kernel queue with an mtype of
+ASHNET_EXIT, as defined in kq.c
+
 this is a very convenient interface to use for custom networking software because the use of a kernel 
 data structure allows for ashnetd usage to be as portable as any interface can be - sys v queues
 can be accessed using any language - I've written both a barebones python implementation of a chat 
