@@ -10,3 +10,6 @@ def recv():
 
 def send(s):
     mq_in.send(s, block=True, type=11)
+
+def exit():
+    mq_in.send('', block=True, type=222)
