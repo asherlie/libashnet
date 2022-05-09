@@ -18,6 +18,7 @@ struct mq{
 };
 
 struct queues{
+    _Atomic _Bool exit;
     key_t kq_key_in, kq_key_out;
 
     struct mq ready_to_send,

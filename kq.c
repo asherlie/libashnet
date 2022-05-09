@@ -5,6 +5,7 @@
 
 #include "mq.h"
 
+#define ASHNET_EXIT 222
 #define KQ_MAX 1000
 
 struct msgbuf{
@@ -53,13 +54,16 @@ _Bool insert_kq(char* msg, key_t kq, uint8_t mtype){
 uint8_t* pop_kq(key_t kq, uint8_t* mtype){
     int msgid = msgget(kq, 0777), br;
     struct msgbuf buf = {0};
-    uint8_t* ret;
+    uint8_t* ret = NULL;
 
     br = msgrcv(msgid, &buf, KQ_MAX, 0, 0);
-    ret = malloc(br+1);
-    memcpy(ret, buf.mdata, br);
-    ret[br] = 0;
-    if(mtype)*mtype = buf.mtype;
+    if(buf.mtype != ASHNET_EXIT){
+        ret = malloc(br+1);
+        memcpy(ret, buf.mdata, br);
+        ret[br] = 0;
+        if(mtype)*mtype = buf.mtype;
+    }
+    else puts("got exit request");
 
     return ret;
 }
