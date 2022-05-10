@@ -100,13 +100,17 @@ struct packet* recv_packet(pcap_t* pcp, int* len){
      */
     struct packet* pkt = calloc(1, sizeof(struct packet));
     /* will this ever return NULL? */
-    const uint8_t* raw_data = pcap_next(pcp, &hdr);
+    const uint8_t* raw_data;
 
-    *len = hdr.len;
+    do{
+        raw_data = pcap_next(pcp, &hdr);
+        rhdr = (struct rtap_hdr*)raw_data;
+    } while((int)hdr.len < rhdr->it_len+38);
 
-    rhdr = (struct rtap_hdr*)raw_data;
-    memcpy(pkt, raw_data+rhdr->it_len+38, MIN(hdr.len-(rhdr->it_len+38), BASE_PACKET_LEN));
-    memcpy(pkt->addr, raw_data+rhdr->it_len+16, 6);
+        *len = hdr.len;
+
+        memcpy(pkt, raw_data+rhdr->it_len+38, MIN(hdr.len-(rhdr->it_len+38), BASE_PACKET_LEN));
+        memcpy(pkt->addr, raw_data+rhdr->it_len+16, 6);
 
     return pkt;
 }
