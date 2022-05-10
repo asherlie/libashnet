@@ -21,8 +21,10 @@ void free_mq(struct mq* m){
         e = pop_mq(m);
         /* if data is non-NULL and still here after
          * all threads are joined, we're good to free
+         * hmm, is there no need to free?
+         * free_packet_storage() will handle freeing of all packets
          */
-        if(e->data)free(e->data);
+        /*if(e->data)free(e->data);*/
         free(e);
     }
     pthread_mutex_destroy(&m->lock);
