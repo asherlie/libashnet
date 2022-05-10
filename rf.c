@@ -107,10 +107,10 @@ struct packet* recv_packet(pcap_t* pcp, int* len){
         rhdr = (struct rtap_hdr*)raw_data;
     } while((int)hdr.len < rhdr->it_len+38);
 
-        *len = hdr.len;
+    *len = hdr.len;
 
-        memcpy(pkt, raw_data+rhdr->it_len+38, MIN(hdr.len-(rhdr->it_len+38), BASE_PACKET_LEN));
-        memcpy(pkt->addr, raw_data+rhdr->it_len+16, 6);
+    memcpy(pkt, raw_data+rhdr->it_len+38, MIN(hdr.len-(rhdr->it_len+38), BASE_PACKET_LEN));
+    memcpy(pkt->addr, raw_data+rhdr->it_len+16, 6);
 
     return pkt;
 }
