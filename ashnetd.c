@@ -17,7 +17,11 @@ note:
         a problem with the client kq interface. this code is working perfectly to send bytes from kq
 #endif
 /*
-TODO: check for mem issues with valgrind while receiving actual ashnet messages
+ * fix mem issues, free up mem
+ * be able to exit using signals
+*/
+/*
+todo: check for mem issues with valgrind while receiving actual ashnet messages
 
 TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
       meaningful data - this will make ashnetd more reliable
@@ -58,6 +62,8 @@ void free_mem(struct queues* q){
      * a backlog of packets to broadcast or
      * fragments to generate
      */
+    free_mq(&q->build_fragments);
+    free_mq(&q->ready_to_send);
 }
 
 /*

@@ -45,5 +45,6 @@ struct queues{
 };
 
 void init_mq(struct mq* m);
+void free_mq(struct mq* m);
 void insert_mq(struct mq* m, void* data, int len);
 struct mq_entry* pop_mq(struct mq* m);

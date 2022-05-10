@@ -11,6 +11,24 @@ void init_mq(struct mq* m){
     m->entries = NULL;
 }
 
+/* this should only be called once no more entries
+ * are being added to the relevant mq
+ */
+void free_mq(struct mq* m){
+    struct mq_entry* e;
+    /* mq is guaranteed to be untouched - all other threads have exited */
+    while(m->entries){
+        e = pop_mq(m);
+        /* if data is non-NULL and still here after
+         * all threads are joined, we're good to free
+         */
+        if(e->data)free(e->data);
+        free(e);
+    }
+    pthread_mutex_destroy(&m->lock);
+    pthread_cond_destroy(&m->cond);
+}
+
 void insert_mq(struct mq* m, void* data, int len){
     struct mq_entry* e = calloc(1, sizeof(struct mq_entry));
     e->data = data;
