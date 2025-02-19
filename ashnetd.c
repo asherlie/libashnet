@@ -21,10 +21,12 @@ note:
  * be able to exit using signals
 */
 /*
-todo: check for mem issues with valgrind while receiving actual ashnet messages
+TODO: CHECK FOR MEM ISSUES WITH VALGRIND WHILE RECEIVING ACTUAL ASHNET MESSAGES
 
 TODO: i need to stop using str(n)len() in favor of passing mq_entry->len fields
       meaningful data - this will make ashnetd more reliable
+
+TODO: remove usage of mutex locks, make this lock free
 */
 #include <stdatomic.h>
 #include <ctype.h>

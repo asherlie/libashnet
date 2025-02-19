@@ -111,7 +111,7 @@ struct peer* lookup_peer(struct packet_storage* ps, uint8_t addr[6], char uname[
         memcpy(last->uname, uname, UNAME_LEN);
         last->n_stored_packets = PACKET_MEMORY;
         last->ins_idx = 1;
-        last->recent_packets = calloc(sizeof(struct packet*), last->n_stored_packets);
+        last->recent_packets = calloc(last->n_stored_packets, sizeof(struct packet*));
         last->next = NULL;
         *created_peer = last;
     }
